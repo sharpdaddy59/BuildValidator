@@ -1,4 +1,11 @@
 using BuildValidator;
+using Microsoft.Build.Locator;
+
+// Initialize MSBuild before using any Roslyn workspace APIs
+if (!MSBuildLocator.IsRegistered)
+{
+    MSBuildLocator.RegisterDefaults();
+}
 
 try
 {

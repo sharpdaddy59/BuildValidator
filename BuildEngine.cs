@@ -1,0 +1,154 @@
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.MSBuild;
+using Microsoft.Build.Locator;
+using System.Diagnostics;
+
+namespace BuildValidator;
+
+
+public enum BuildStatus
+{
+    Success,
+    Failed,
+    Skipped
+}
+
+public record BuildResult
+{
+    public string ProjectPath { get; init; } = string.Empty;
+    public string ProjectName { get; init; } = string.Empty;
+    public BuildStatus Status { get; init; }
+    public TimeSpan Duration { get; init; }
+    public List<BuildDiagnostic> Diagnostics { get; init; } = new();
+    public string? ErrorMessage { get; init; }
+}
+
+public record BuildDiagnostic
+{
+    public DiagnosticSeverity Severity { get; init; }
+    public string Id { get; init; } = string.Empty;
+    public string Message { get; init; } = string.Empty;
+    public string? FilePath { get; init; }
+    public int LineNumber { get; init; }
+    public int ColumnNumber { get; init; }
+}
+
+public class BuildEngine
+{
+    private readonly CommandLineOptions _options;
+
+    public BuildEngine(CommandLineOptions options)
+    {
+        _options = options;
+    }
+
+    public async Task<BuildResult> CompileProjectAsync(string projectPath)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var projectName = Path.GetFileNameWithoutExtension(projectPath);
+        
+        try
+        {
+            // Use MSBuildWorkspace for full Roslyn analysis
+            using var workspace = MSBuildWorkspace.Create(new Dictionary<string, string>
+            {
+                ["Configuration"] = _options.Configuration
+            });
+
+            // Load the project
+            var project = await workspace.OpenProjectAsync(projectPath);
+            var compilation = await project.GetCompilationAsync();
+
+            stopwatch.Stop();
+
+            if (compilation == null)
+            {
+                return new BuildResult
+                {
+                    ProjectPath = projectPath,
+                    ProjectName = projectName,
+                    Status = BuildStatus.Failed,
+                    Duration = stopwatch.Elapsed,
+                    ErrorMessage = "Failed to create compilation"
+                };
+            }
+
+            // Check for compilation errors
+            var diagnostics = ConvertDiagnostics(compilation.GetDiagnostics());
+            var hasErrors = diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error);
+            var status = hasErrors ? BuildStatus.Failed : BuildStatus.Success;
+
+            return new BuildResult
+            {
+                ProjectPath = projectPath,
+                ProjectName = projectName,
+                Status = status,
+                Duration = stopwatch.Elapsed,
+                Diagnostics = diagnostics
+            };
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            return new BuildResult
+            {
+                ProjectPath = projectPath,
+                ProjectName = projectName,
+                Status = BuildStatus.Failed,
+                Duration = stopwatch.Elapsed,
+                ErrorMessage = ex.Message
+            };
+        }
+    }
+
+
+
+    private List<BuildDiagnostic> ConvertDiagnostics(IEnumerable<Diagnostic> diagnostics)
+    {
+        var result = new List<BuildDiagnostic>();
+
+        foreach (var diagnostic in diagnostics)
+        {
+            // Skip hidden diagnostics unless verbose
+            if (diagnostic.Severity == DiagnosticSeverity.Hidden && _options.Verbosity != "detailed")
+                continue;
+
+            // Skip informational diagnostics unless verbose
+            if (diagnostic.Severity == DiagnosticSeverity.Info && _options.Verbosity == "minimal")
+                continue;
+
+            // Skip warnings unless requested
+            if (diagnostic.Severity == DiagnosticSeverity.Warning && !_options.IncludeWarnings)
+                continue;
+
+            var location = diagnostic.Location;
+            var lineSpan = location.GetLineSpan();
+
+            result.Add(new BuildDiagnostic
+            {
+                Severity = diagnostic.Severity,
+                Id = diagnostic.Id,
+                Message = diagnostic.GetMessage(),
+                FilePath = location.IsInSource ? location.SourceTree?.FilePath : null,
+                LineNumber = location.IsInSource ? lineSpan.StartLinePosition.Line + 1 : 0,
+                ColumnNumber = location.IsInSource ? lineSpan.StartLinePosition.Character + 1 : 0
+            });
+        }
+
+        return result;
+    }
+
+    public async Task<List<BuildResult>> CompileProjectsAsync(IEnumerable<string> projectPaths)
+    {
+        var results = new List<BuildResult>();
+        
+        // For now, build sequentially (we'll add parallel support later)
+        foreach (var projectPath in projectPaths)
+        {
+            var result = await CompileProjectAsync(projectPath);
+            results.Add(result);
+        }
+
+        return results;
+    }
+}

@@ -20,23 +20,46 @@ public static class BuildValidatorApp
                 Console.WriteLine("No C# project or solution files found.");
                 return 1;
             }
-            
-            // For now, just show what we found
-            Console.WriteLine($"Found {projectFiles.Count} project(s)/solution(s):");
-            foreach (var file in projectFiles)
+
+            // Filter to only project files for now (skip .sln files until we implement solution support)
+            var projects = projectFiles.Where(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) || 
+                                                  f.EndsWith(".vbproj", StringComparison.OrdinalIgnoreCase))
+                                       .ToList();
+
+            if (projects.Count == 0)
             {
-                Console.WriteLine($"  {Path.GetFileName(file)}");
+                Console.WriteLine("No individual project files found. Solution file support coming soon.");
+                return 1;
             }
-            
-            // TODO: Implement actual building
-            Console.WriteLine();
-            Console.WriteLine("Build validation functionality will be implemented next.");
-            
-            return 0;
+
+            if (options.Verbosity != "minimal")
+            {
+                Console.WriteLine($"Found {projects.Count} project(s) to build:");
+                foreach (var project in projects)
+                {
+                    Console.WriteLine($"  {Path.GetFileName(project)}");
+                }
+                Console.WriteLine();
+            }
+
+            // Create build engine and compile projects
+            var buildEngine = new BuildEngine(options);
+            var results = await buildEngine.CompileProjectsAsync(projects);
+
+            // Display results
+            BuildResultFormatter.DisplayResults(results, options);
+
+            // Return exit code based on results
+            var hasFailures = results.Any(r => r.Status == BuildStatus.Failed);
+            return hasFailures ? 1 : 0;
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error: {ex.Message}");
+            if (options.Verbosity == "detailed")
+            {
+                Console.Error.WriteLine($"Stack trace: {ex.StackTrace}");
+            }
             return 1;
         }
     }

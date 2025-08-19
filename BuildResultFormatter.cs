@@ -53,6 +53,16 @@ public static class BuildResultFormatter
 
         // Show diagnostics
         DisplayDiagnostics(result.Diagnostics, options);
+
+        // Show analysis results if available
+        if (result.AnalysisResults != null && result.AnalysisResults.Any())
+        {
+            if (options.Verbosity != "minimal")
+            {
+                Console.WriteLine("  📊 Code Analysis Results:");
+            }
+            DisplayAnalysisResults(result.AnalysisResults, options);
+        }
     }
 
     private static void DisplayDiagnostics(IEnumerable<BuildDiagnostic> diagnostics, CommandLineOptions options)
@@ -85,6 +95,87 @@ public static class BuildResultFormatter
 
             Console.ForegroundColor = color;
             Console.WriteLine($"  {severity} {diagnostic.Id}: {diagnostic.Message}{location}");
+            Console.ResetColor();
+        }
+    }
+
+    private static void DisplayAnalysisResults(IEnumerable<CodeAnalysisResult> analysisResults, CommandLineOptions options)
+    {
+        foreach (var analysis in analysisResults)
+        {
+            DisplayCodeMetrics(analysis.CodeMetrics, analysis.FilePath, options);
+            
+            if (options.Verbosity == "detailed")
+            {
+                DisplayDetailedAnalysis(analysis, options);
+            }
+        }
+    }
+
+    private static void DisplayCodeMetrics(CodeMetrics metrics, string filePath, CommandLineOptions options)
+    {
+        var fileName = Path.GetFileName(filePath);
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine($"    {fileName}: Complexity: {metrics.CyclomaticComplexity}, Maintainability: {metrics.MaintainabilityIndex:F0}, Methods: {metrics.MethodCount}");
+        Console.ResetColor();
+
+        // Flag high complexity
+        if (metrics.CyclomaticComplexity > options.ComplexityThreshold)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"      ⚠️  High complexity (>{options.ComplexityThreshold})");
+            Console.ResetColor();
+        }
+
+        // Flag low maintainability
+        if (metrics.MaintainabilityIndex < options.MaintainabilityThreshold)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"      ⚠️  Low maintainability index (<{options.MaintainabilityThreshold})");
+            Console.ResetColor();
+        }
+
+        // Excellent code quality
+        if (metrics.MaintainabilityIndex >= 80 && metrics.CyclomaticComplexity <= options.ComplexityThreshold)
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("      ✨ Excellent code quality");
+            Console.ResetColor();
+        }
+    }
+
+    private static void DisplayDetailedAnalysis(CodeAnalysisResult analysis, CommandLineOptions options)
+    {
+        // Unused usings
+        if (analysis.SemanticAnalysis.UnusedUsings.Any())
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("    ⚠️  Unused using statements:");
+            foreach (var unused in analysis.SemanticAnalysis.UnusedUsings)
+            {
+                Console.WriteLine($"      - Line {unused.Line}: {unused.Message}");
+            }
+            Console.ResetColor();
+        }
+
+        // Potential null references
+        if (analysis.SemanticAnalysis.PotentialNullReferences.Any())
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("    ⚠️  Potential null references:");
+            foreach (var nullRef in analysis.SemanticAnalysis.PotentialNullReferences)
+            {
+                Console.WriteLine($"      - Line {nullRef.Line}: {nullRef.Message}");
+            }
+            Console.ResetColor();
+        }
+
+        // Syntax analysis details
+        if (options.Verbosity == "detailed")
+        {
+            Console.ForegroundColor = ConsoleColor.Gray;
+            Console.WriteLine($"    📝 Lines: {analysis.SyntaxAnalysis.CodeLines} code, {analysis.SyntaxAnalysis.CommentLines} comments, {analysis.SyntaxAnalysis.BlankLines} blank");
+            Console.WriteLine($"    🏗️  Structure: {analysis.SyntaxAnalysis.ClassNames.Length} classes, {analysis.SyntaxAnalysis.PropertyNames.Length} properties");
             Console.ResetColor();
         }
     }

@@ -21,6 +21,7 @@ public record BuildResult
     public TimeSpan Duration { get; init; }
     public List<BuildDiagnostic> Diagnostics { get; init; } = new();
     public string? ErrorMessage { get; init; }
+    public List<CodeAnalysisResult>? AnalysisResults { get; init; }
 }
 
 public record BuildDiagnostic
@@ -46,6 +47,12 @@ public class BuildEngine
     {
         var stopwatch = Stopwatch.StartNew();
         var projectName = Path.GetFileNameWithoutExtension(projectPath);
+        
+        // Handle metrics-only mode - skip MSBuild compilation
+        if (_options.MetricsOnly)
+        {
+            return await AnalyzeProjectMetricsOnly(projectPath, projectName, stopwatch);
+        }
         
         try
         {
@@ -78,13 +85,21 @@ public class BuildEngine
             var hasErrors = diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error);
             var status = hasErrors ? BuildStatus.Failed : BuildStatus.Success;
 
+            // Perform code analysis if requested
+            List<CodeAnalysisResult>? analysisResults = null;
+            if (_options.EnableAnalysis || _options.IncludeMetrics || _options.MetricsOnly)
+            {
+                analysisResults = await PerformCodeAnalysis(project);
+            }
+
             return new BuildResult
             {
                 ProjectPath = projectPath,
                 ProjectName = projectName,
                 Status = status,
                 Duration = stopwatch.Elapsed,
-                Diagnostics = diagnostics
+                Diagnostics = diagnostics,
+                AnalysisResults = analysisResults
             };
         }
         catch (Exception ex)
@@ -150,5 +165,95 @@ public class BuildEngine
         }
 
         return results;
+    }
+
+    private async Task<List<CodeAnalysisResult>> PerformCodeAnalysis(Microsoft.CodeAnalysis.Project project)
+    {
+        var analyzer = new RoslynAnalyzer();
+        var analysisResults = new List<CodeAnalysisResult>();
+
+        foreach (var document in project.Documents)
+        {
+            if (document.FilePath != null && document.FilePath.EndsWith(".cs"))
+            {
+                try
+                {
+                    var sourceText = await document.GetTextAsync();
+                    var sourceCode = sourceText.ToString();
+                    
+                    var analysis = await analyzer.AnalyzeCodeAsync(sourceCode, document.FilePath);
+                    analysisResults.Add(analysis);
+                }
+                catch (Exception ex)
+                {
+                    // Log analysis failure but continue with other files
+                    if (_options.Verbosity == "detailed")
+                    {
+                        Console.WriteLine($"  Warning: Failed to analyze {document.Name}: {ex.Message}");
+                    }
+                }
+            }
+        }
+
+        return analysisResults;
+    }
+
+    private async Task<BuildResult> AnalyzeProjectMetricsOnly(string projectPath, string projectName, Stopwatch stopwatch)
+    {
+        try
+        {
+            var analyzer = new RoslynAnalyzer();
+            var analysisResults = new List<CodeAnalysisResult>();
+            
+            // Find all .cs files in the project directory
+            var projectDir = Path.GetDirectoryName(projectPath);
+            if (projectDir != null)
+            {
+                var csFiles = Directory.GetFiles(projectDir, "*.cs", SearchOption.AllDirectories)
+                    .Where(f => !f.Contains("bin") && !f.Contains("obj")) // Skip build output
+                    .ToList();
+
+                foreach (var csFile in csFiles)
+                {
+                    try
+                    {
+                        var analysis = await analyzer.AnalyzeFileAsync(csFile);
+                        analysisResults.Add(analysis);
+                    }
+                    catch (Exception ex)
+                    {
+                        if (_options.Verbosity == "detailed")
+                        {
+                            Console.WriteLine($"  Warning: Failed to analyze {Path.GetFileName(csFile)}: {ex.Message}");
+                        }
+                    }
+                }
+            }
+
+            stopwatch.Stop();
+            
+            return new BuildResult
+            {
+                ProjectPath = projectPath,
+                ProjectName = projectName,
+                Status = BuildStatus.Success,
+                Duration = stopwatch.Elapsed,
+                Diagnostics = new List<BuildDiagnostic>(),
+                AnalysisResults = analysisResults
+            };
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            return new BuildResult
+            {
+                ProjectPath = projectPath,
+                ProjectName = projectName,
+                Status = BuildStatus.Failed,
+                Duration = stopwatch.Elapsed,
+                ErrorMessage = ex.Message,
+                AnalysisResults = new List<CodeAnalysisResult>()
+            };
+        }
     }
 }

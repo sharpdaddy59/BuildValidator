@@ -7,6 +7,13 @@ public record CommandLineOptions
     public string Configuration { get; init; } = "Debug";
     public string Verbosity { get; init; } = "normal";
     public bool IncludeWarnings { get; init; } = false;
+    public bool EnableAnalysis { get; init; } = false;
+    public bool MetricsOnly { get; init; } = false;
+    public bool IncludeMetrics { get; init; } = false;
+    public int ComplexityThreshold { get; init; } = 10;
+    public int MaintainabilityThreshold { get; init; } = 20;
+    public string OutputFormat { get; init; } = "console";
+    public string? OutputFile { get; init; } = null;
 }
 
 public static class CommandLineParser
@@ -32,7 +39,14 @@ public static class CommandLineParser
             ParallelCount = Environment.ProcessorCount,
             Configuration = "Debug",
             Verbosity = "normal",
-            IncludeWarnings = false
+            IncludeWarnings = false,
+            EnableAnalysis = false,
+            MetricsOnly = false,
+            IncludeMetrics = false,
+            ComplexityThreshold = 10,
+            MaintainabilityThreshold = 20,
+            OutputFormat = "console",
+            OutputFile = null
         };
 
         // Parse remaining arguments
@@ -102,6 +116,79 @@ public static class CommandLineParser
             {
                 options = options with { IncludeWarnings = true };
             }
+            else if (arg == "--analysis" || arg == "-a")
+            {
+                options = options with { EnableAnalysis = true };
+            }
+            else if (arg == "--metrics-only")
+            {
+                options = options with { MetricsOnly = true };
+            }
+            else if (arg == "--include-metrics")
+            {
+                options = options with { IncludeMetrics = true };
+            }
+            else if (arg == "--complexity-threshold")
+            {
+                if (i + 1 < args.Length && int.TryParse(args[i + 1], out int threshold))
+                {
+                    options = options with { ComplexityThreshold = threshold };
+                    i++;
+                }
+                else
+                {
+                    Console.Error.WriteLine("Error: --complexity-threshold requires a numeric value");
+                    Environment.Exit(1);
+                }
+            }
+            else if (arg == "--maintainability-threshold")
+            {
+                if (i + 1 < args.Length && int.TryParse(args[i + 1], out int threshold))
+                {
+                    options = options with { MaintainabilityThreshold = threshold };
+                    i++;
+                }
+                else
+                {
+                    Console.Error.WriteLine("Error: --maintainability-threshold requires a numeric value");
+                    Environment.Exit(1);
+                }
+            }
+            else if (arg == "--format")
+            {
+                if (i + 1 < args.Length)
+                {
+                    string format = args[i + 1];
+                    if (new[] { "console", "json", "markdown" }.Contains(format.ToLowerInvariant()))
+                    {
+                        options = options with { OutputFormat = format };
+                        i++;
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine("Error: Format must be one of: console, json, markdown");
+                        Environment.Exit(1);
+                    }
+                }
+                else
+                {
+                    Console.Error.WriteLine("Error: --format requires a value");
+                    Environment.Exit(1);
+                }
+            }
+            else if (arg == "--output")
+            {
+                if (i + 1 < args.Length)
+                {
+                    options = options with { OutputFile = args[i + 1] };
+                    i++;
+                }
+                else
+                {
+                    Console.Error.WriteLine("Error: --output requires a file path");
+                    Environment.Exit(1);
+                }
+            }
             else if (arg == "--help" || arg == "-h")
             {
                 ShowHelp();
@@ -133,7 +220,7 @@ public static class CommandLineParser
 
     private static void ShowHelp()
     {
-        Console.WriteLine("BuildValidator - Validates C# projects can build successfully using MSBuild APIs");
+        Console.WriteLine("BuildValidator - Validates C# projects using MSBuild compilation + advanced Roslyn analysis");
         Console.WriteLine();
         Console.WriteLine("Usage:");
         Console.WriteLine("  BuildValidator <directory> [options]");
@@ -141,16 +228,29 @@ public static class CommandLineParser
         Console.WriteLine("Arguments:");
         Console.WriteLine("  directory           The directory path to search for C# projects");
         Console.WriteLine();
-        Console.WriteLine("Options:");
+        Console.WriteLine("Core Options:");
         Console.WriteLine("  --parallel, -p      Number of parallel builds (default: processor count)");
         Console.WriteLine("  --config, -c        Build configuration: Debug or Release (default: Debug)");
         Console.WriteLine("  --verbosity, -v     Output verbosity: minimal, normal, or detailed (default: normal)");
         Console.WriteLine("  --warnings, -w      Include warnings in output (default: false)");
+        Console.WriteLine();
+        Console.WriteLine("Analysis Options:");
+        Console.WriteLine("  --analysis, -a      Enable full analysis mode (compilation + code quality analysis)");
+        Console.WriteLine("  --metrics-only      Skip compilation, perform code quality analysis only");
+        Console.WriteLine("  --include-metrics   Include code metrics in standard compilation mode");
+        Console.WriteLine("  --complexity-threshold <n>    Flag methods with complexity > n (default: 10)");
+        Console.WriteLine("  --maintainability-threshold <n>  Flag files with maintainability index < n (default: 20)");
+        Console.WriteLine();
+        Console.WriteLine("Output Options:");
+        Console.WriteLine("  --format <format>   Output format: console, json, markdown (default: console)");
+        Console.WriteLine("  --output <file>     Save results to file (format auto-detected from extension)");
         Console.WriteLine("  --help, -h          Show this help message");
         Console.WriteLine();
         Console.WriteLine("Examples:");
         Console.WriteLine("  BuildValidator ./src");
         Console.WriteLine("  BuildValidator ./src --config Release --parallel 4");
-        Console.WriteLine("  BuildValidator ./src --verbosity detailed --warnings");
+        Console.WriteLine("  BuildValidator ./src --analysis --verbosity detailed");
+        Console.WriteLine("  BuildValidator ./src --metrics-only --complexity-threshold 15");
+        Console.WriteLine("  BuildValidator ./src --analysis --format json --output results.json");
     }
 }

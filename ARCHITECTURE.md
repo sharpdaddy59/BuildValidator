@@ -15,7 +15,7 @@ BuildValidator implements a **dual-engine hybrid architecture** that combines th
 ### 2. Hybrid Analysis Strategy
 ```
 ┌─────────────────┐    ┌──────────────────┐
-│ MSBuildWorkspace │    │ Direct Roslyn    │
+│ MSBuildWorkspace│    │ Direct Roslyn    │
 │ Engine          │    │ Analysis         │
 ├─────────────────┤    ├──────────────────┤
 │ • Project Load  │    │ • Syntax Trees   │

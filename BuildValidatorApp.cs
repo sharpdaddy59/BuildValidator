@@ -7,7 +7,10 @@ public static class BuildValidatorApp
 {
     public static async Task<int> RunAsync(CommandLineOptions options)
     {
-        Console.WriteLine($"Building C# Projects in: {options.Directory}");
+        var modeText = options.MetricsOnly ? "Analyzing" : 
+                      (options.EnableAnalysis || options.IncludeMetrics) ? "Building & Analyzing" : "Building";
+        
+        Console.WriteLine($"{modeText} C# Projects in: {options.Directory}");
         Console.WriteLine("==========================================");
         
         try

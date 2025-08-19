@@ -153,6 +153,76 @@ public class BuildEngine
         return result;
     }
 
+    public async Task<BuildResult> CompileSolutionAsync(string solutionPath)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var solutionName = Path.GetFileNameWithoutExtension(solutionPath);
+        
+        try
+        {
+            // Use MSBuildWorkspace to load the entire solution
+            using var workspace = MSBuildWorkspace.Create(new Dictionary<string, string>
+            {
+                ["Configuration"] = _options.Configuration
+            });
+
+            // Load the solution
+            var solution = await workspace.OpenSolutionAsync(solutionPath);
+            var allDiagnostics = new List<BuildDiagnostic>();
+            var allAnalysisResults = new List<CodeAnalysisResult>();
+            var hasErrors = false;
+
+            // Compile all projects in the solution
+            foreach (var project in solution.Projects)
+            {
+                var compilation = await project.GetCompilationAsync();
+                if (compilation == null)
+                {
+                    hasErrors = true;
+                    continue;
+                }
+
+                // Collect diagnostics from this project
+                var diagnostics = ConvertDiagnostics(compilation.GetDiagnostics());
+                allDiagnostics.AddRange(diagnostics);
+                hasErrors |= diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error);
+
+                // Perform code analysis if requested
+                if (_options.EnableAnalysis || _options.IncludeMetrics || _options.MetricsOnly)
+                {
+                    var projectAnalysis = await PerformCodeAnalysis(project);
+                    allAnalysisResults.AddRange(projectAnalysis);
+                }
+            }
+
+            stopwatch.Stop();
+
+            var status = hasErrors ? BuildStatus.Failed : BuildStatus.Success;
+
+            return new BuildResult
+            {
+                ProjectPath = solutionPath,
+                ProjectName = solutionName,
+                Status = status,
+                Duration = stopwatch.Elapsed,
+                Diagnostics = allDiagnostics,
+                AnalysisResults = allAnalysisResults.Any() ? allAnalysisResults : null
+            };
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            return new BuildResult
+            {
+                ProjectPath = solutionPath,
+                ProjectName = solutionName,
+                Status = BuildStatus.Failed,
+                Duration = stopwatch.Elapsed,
+                ErrorMessage = ex.Message
+            };
+        }
+    }
+
     public async Task<List<BuildResult>> CompileProjectsAsync(IEnumerable<string> projectPaths)
     {
         var results = new List<BuildResult>();

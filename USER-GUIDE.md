@@ -5,6 +5,7 @@ A comprehensive guide to using BuildValidator for C# project validation and code
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [Project Discovery: Solutions vs Individual Projects](#project-discovery-solutions-vs-individual-projects)
 - [Understanding Code Quality Metrics](#understanding-code-quality-metrics)
 - [Analysis Modes](#analysis-modes)
 - [Output Formats](#output-formats)
@@ -25,17 +26,46 @@ BuildValidator is a .NET 8 console application. To get started:
 ### Your First Analysis
 
 ```bash
-# Basic compilation check
+# Basic compilation check (works with both solutions and individual projects)
 dotnet run -- ./src
 
 # Full analysis with code quality metrics
 dotnet run -- ./src --analysis
 
+# For enterprise codebases with solutions
+dotnet run -- ./MyEnterpriseSolution --analysis --verbosity detailed
+
 # Export results to Excel-friendly CSV
 dotnet run -- ./src --analysis --output results.csv
+
+# Test specific projects when no solution available
+dotnet run -- ./single-project --metrics-only
 ```
 
 ### Expected Output
+
+#### Solution Mode (Preferred)
+When BuildValidator finds `.sln` files, it uses solution mode for better dependency resolution:
+
+```
+Building & Analyzing C# Projects in: ./src
+==========================================
+Found 1 solution(s) to build:
+  MyApp.sln
+
+[1/1] MyApp ................................ ✓ (2.4s)
+  📊 Code Analysis Results:
+    UserService.cs: Complexity: 8, Maintainability: 72, Methods: 5
+    DataRepository.cs: Complexity: 12, Maintainability: 45, Methods: 8
+      ⚠️  High complexity (>10)
+    ⚡ Performance: 5 issues (🔴 0 high, 🟡 2 medium, 🟢 3 low)
+
+Results: 1 succeeded, 0 failed (2.4s total)
+Code Quality: 1 needs improvement
+```
+
+#### Individual Project Mode (Fallback)
+When no `.sln` files are found, BuildValidator falls back to individual project mode:
 
 ```
 Building & Analyzing C# Projects in: ./src
@@ -46,16 +76,47 @@ Found 3 project(s) to build:
   MyApp.Tests.csproj
 
 [1/3] MyApp.Core ........................... ✓ (1.8s)
-  📊 Code Analysis Results:
-    UserService.cs: Complexity: 8, Maintainability: 72, Methods: 5
-    DataRepository.cs: Complexity: 12, Maintainability: 45, Methods: 8
-      ⚠️  High complexity (>10)
-
 [2/3] MyApp.Api ............................ ✓ (2.1s)  
 [3/3] MyApp.Tests .......................... ✓ (0.9s)
 
 Results: 3 succeeded, 0 failed (4.8s total)
 ```
+
+## Project Discovery: Solutions vs Individual Projects
+
+BuildValidator uses a **solution-first discovery approach** for optimal analysis results:
+
+### Discovery Priority
+
+1. **Solution Mode** (Preferred): When `.sln` files are found
+   - Uses `MSBuildWorkspace.OpenSolutionAsync()` for complete dependency resolution
+   - Analyzes all projects in the solution as a unified workspace
+   - Provides better cross-project reference analysis
+   - Handles complex project dependencies automatically
+
+2. **Individual Project Mode** (Fallback): When no solutions are found
+   - Processes each `.csproj`/`.vbproj` file independently  
+   - Works perfectly for single projects or simple codebases
+   - Maintains backward compatibility with existing workflows
+
+### When Each Mode is Used
+
+**Solution Mode Activated When**:
+- Directory contains any `.sln` file(s)
+- Better for enterprise codebases with multiple related projects
+- Provides comprehensive dependency analysis
+
+**Individual Project Mode Used When**:
+- No `.sln` files found in directory tree
+- Perfect for single-project repositories
+- Simple libraries or standalone applications
+
+### Benefits of Solution Mode
+
+- **Enhanced Analysis**: Full project context for better code quality metrics
+- **Dependency Awareness**: Understands inter-project references and dependencies
+- **Enterprise-Ready**: Handles complex solutions with multiple configurations
+- **Unified Reporting**: Single analysis result covering entire solution
 
 ## Understanding Code Quality Metrics
 
@@ -320,7 +381,58 @@ dotnet run -- ./legacy-app --metrics-only --complexity-threshold 25 --maintainab
 - Refactoring priority matrix
 - Quality improvement roadmap
 
-### Scenario 3: CI/CD Pipeline Integration
+### Scenario 3: Enterprise Solution Analysis
+
+**Situation**: Analyzing large enterprise codebases with multiple projects and dependencies
+
+```bash
+# Comprehensive solution analysis
+dotnet run -- ./EnterpriseSolution --analysis --verbosity detailed --output enterprise-report.json
+
+# Quick solution health check
+dotnet run -- ./EnterpriseSolution --include-metrics
+
+# Focus on performance issues in large solutions
+dotnet run -- ./EnterpriseSolution --analysis --complexity-threshold 15 --output performance-audit.csv
+```
+
+**Benefits of Solution Mode**:
+1. **Cross-Project Analysis**: Understands dependencies between projects
+2. **Unified Reporting**: Single report covering entire solution architecture  
+3. **Better Context**: More accurate code quality metrics with full project context
+4. **Enterprise Scale**: Handles complex solutions with dozens of projects
+
+**Typical Results**:
+- Single solution analysis instead of multiple individual project results
+- Better dependency resolution for inter-project references
+- More accurate unused reference detection across projects
+- Comprehensive architecture overview in output formats
+
+### Scenario 4: Solution vs Project Mode Comparison
+
+**Situation**: Understanding when to use solution mode vs individual project mode
+
+**Enterprise Solution Example**:
+```bash
+# Solution mode - analyzes entire architecture
+dotnet run -- ./MyEnterpriseSolution --analysis --verbosity detailed
+# Output: Found 1 solution(s) to build: MyEnterpriseSolution.sln
+# Analyzes: All 15 projects with full dependency context
+```
+
+**Individual Projects Example**:
+```bash
+# Individual mode - processes projects separately  
+dotnet run -- ./src/standalone-projects --analysis --verbosity detailed
+# Output: Found 3 project(s) to build: Core.csproj, Utils.csproj, Tests.csproj
+# Analyzes: Each project independently
+```
+
+**When to Use Each**:
+- **Solution Mode**: Multi-project codebases, enterprise applications, shared libraries
+- **Individual Mode**: Single projects, microservices, independent libraries
+
+### Scenario 5: CI/CD Pipeline Integration
 
 **Situation**: Automated quality checking in build pipelines
 
@@ -433,20 +545,41 @@ BuildValidator ./src --analysis --verbosity minimal --output pipeline-results.js
 
 ### Common Issues
 
-#### "No C# project files found"
+#### "No C# project or solution files found"
 
-**Cause**: BuildValidator couldn't find `.csproj` or `.sln` files in the specified directory.
+**Cause**: BuildValidator couldn't find `.csproj`, `.vbproj`, or `.sln` files in the specified directory.
 
 **Solution**:
 ```bash
 # Verify you're in the right directory
-ls *.csproj *.sln
+ls *.csproj *.vbproj *.sln
 
-# Check subdirectories
-find . -name "*.csproj" -o -name "*.sln"
+# Check subdirectories recursively
+find . -name "*.csproj" -o -name "*.vbproj" -o -name "*.sln"
 
 # Try parent directory if projects are in subdirectories
 BuildValidator ../
+```
+
+**Understanding Discovery**:
+- BuildValidator searches recursively for both solutions and projects
+- Solution files (`.sln`) take priority over individual projects
+- Individual projects are processed when no solution is found
+
+#### "No valid C# projects or solutions found"
+
+**Cause**: BuildValidator found files but couldn't process them (corrupted files, wrong format).
+
+**Solution**:
+```bash
+# Verify solution file integrity
+dotnet sln list
+
+# Test individual project files
+dotnet build ./path/to/project.csproj
+
+# Check for file permissions or corruption
+file *.sln *.csproj
 ```
 
 #### "MSBuild errors during compilation"

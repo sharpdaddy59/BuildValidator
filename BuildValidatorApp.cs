@@ -16,38 +16,62 @@ public static class BuildValidatorApp
         try
         {
             // Discover all project and solution files
-            var projectFiles = DiscoverProjects(options.Directory);
+            var discoveredFiles = DiscoverProjects(options.Directory);
             
-            if (projectFiles.Count == 0)
+            if (discoveredFiles.Count == 0)
             {
                 Console.WriteLine("No C# project or solution files found.");
                 return 1;
             }
 
-            // Filter to only project files for now (skip .sln files until we implement solution support)
-            var projects = projectFiles.Where(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) || 
-                                                  f.EndsWith(".vbproj", StringComparison.OrdinalIgnoreCase))
-                                       .ToList();
+            // Solution-first approach: prefer solution files over individual projects
+            var solutionFiles = discoveredFiles.Where(f => f.EndsWith(".sln", StringComparison.OrdinalIgnoreCase)).ToList();
+            var projectFiles = discoveredFiles.Where(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) || 
+                                                         f.EndsWith(".vbproj", StringComparison.OrdinalIgnoreCase)).ToList();
 
-            if (projects.Count == 0)
+            var buildEngine = new BuildEngine(options);
+            List<BuildResult> results;
+
+            if (solutionFiles.Any())
             {
-                Console.WriteLine("No individual project files found. Solution file support coming soon.");
+                // Solution mode: compile entire solution(s)
+                if (options.Verbosity != "minimal")
+                {
+                    Console.WriteLine($"Found {solutionFiles.Count} solution(s) to build:");
+                    foreach (var solution in solutionFiles)
+                    {
+                        Console.WriteLine($"  {Path.GetFileName(solution)}");
+                    }
+                    Console.WriteLine();
+                }
+
+                results = new List<BuildResult>();
+                foreach (var solutionPath in solutionFiles)
+                {
+                    var result = await buildEngine.CompileSolutionAsync(solutionPath);
+                    results.Add(result);
+                }
+            }
+            else if (projectFiles.Any())
+            {
+                // Fallback mode: compile individual projects
+                if (options.Verbosity != "minimal")
+                {
+                    Console.WriteLine($"Found {projectFiles.Count} project(s) to build:");
+                    foreach (var project in projectFiles)
+                    {
+                        Console.WriteLine($"  {Path.GetFileName(project)}");
+                    }
+                    Console.WriteLine();
+                }
+
+                results = await buildEngine.CompileProjectsAsync(projectFiles);
+            }
+            else
+            {
+                Console.WriteLine("No valid C# projects or solutions found.");
                 return 1;
             }
-
-            if (options.Verbosity != "minimal")
-            {
-                Console.WriteLine($"Found {projects.Count} project(s) to build:");
-                foreach (var project in projects)
-                {
-                    Console.WriteLine($"  {Path.GetFileName(project)}");
-                }
-                Console.WriteLine();
-            }
-
-            // Create build engine and compile projects
-            var buildEngine = new BuildEngine(options);
-            var results = await buildEngine.CompileProjectsAsync(projects);
 
             // Display or export results
             await OutputFormatters.WriteResultsAsync(results, options);

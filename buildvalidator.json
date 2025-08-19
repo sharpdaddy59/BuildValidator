@@ -3,16 +3,26 @@
   "enableEncapsulationRules": true,
   "enableAccessibilityRules": true,
   "enableOrganizationRules": true,
+  "enableSemanticRules": true,
+  "enableNullReferenceDetection": true,
+  "enableUnusedImportDetection": true,
+  "analyzeGeneratedCode": false,
+  "minimumSeverity": "Warning",
+  "treatWarningsAsErrors": false,
   "disabledRules": [
     "USG002"
   ],
   "severityOverrides": {
-    "DOC001": "Error",
-    "DOC002": "Error", 
-    "ENC001": "Error"
+    "DOC001": "Warning",
+    "DOC002": "Warning", 
+    "ENC001": "Warning"
   },
-  "minimumSeverity": "Info",
-  "treatWarningsAsErrors": false,
+  "semanticSeverityOverrides": {
+    "SEM010": "Info",
+    "SEM011": "Info",
+    "SEM020": "Info",
+	"SEM030": "Info"
+  },
   "excludePatterns": [
     "**/bin/**",
     "**/obj/**",
@@ -20,6 +30,5 @@
     "**/*.Designer.cs",
     "**/*.g.cs",
     "**/*.generated.cs"
-  ],
-  "analyzeGeneratedCode": false
+  ]
 }

@@ -23,6 +23,19 @@ public record StyleIssue
     public string? RuleId { get; init; }
 }
 
+public record SemanticIssue
+{
+    public required string Category { get; init; }
+    public required string Message { get; init; }
+    public required string Recommendation { get; init; }
+    public required int Line { get; init; }
+    public required int Column { get; init; }
+    public required StyleSeverity Severity { get; init; }
+    public string? CodeSnippet { get; init; }
+    public required string RuleId { get; init; }
+    public string? FilePath { get; init; }
+}
+
 public record StyleAnalysis
 {
     public required StyleIssue[] AccessibilityIssues { get; init; }

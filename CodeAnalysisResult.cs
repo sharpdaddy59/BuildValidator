@@ -12,6 +12,7 @@ public record CodeAnalysisResult
     public required CompilationIssue[] CompilationIssues { get; init; }
     public required PerformanceAnalysis PerformanceAnalysis { get; init; }
     public required StyleAnalysis StyleAnalysis { get; init; }
+    public required SemanticIssue[] SemanticIssues { get; init; }
 }
 
 public record SyntaxAnalysis

@@ -14,11 +14,12 @@ public class RoslynAnalyzer
         var root = await syntaxTree.GetRootAsync();
 
         var syntaxAnalysis = AnalyzeSyntax(root, sourceCode);
-        var semanticAnalysis = AnalyzeSemantics(root, semanticModel);
+        var semanticAnalysis = AnalyzeSemantics(root, semanticModel, styleConfig);
         var codeMetrics = CalculateMetrics(root, semanticModel);
         var compilationIssues = GetCompilationIssues(compilation);
         var performanceAnalysis = PerformanceAnalyzer.AnalyzePerformance(root, semanticModel);
         var styleAnalysis = StyleValidationAnalyzer.AnalyzeStyle(root, semanticModel, filePath, styleConfig);
+        var semanticIssues = SemanticAnalyzer.AnalyzeSemantics(root, semanticModel, filePath, styleConfig);
 
         return new CodeAnalysisResult
         {
@@ -29,7 +30,8 @@ public class RoslynAnalyzer
             CodeMetrics = codeMetrics,
             CompilationIssues = compilationIssues,
             PerformanceAnalysis = performanceAnalysis,
-            StyleAnalysis = styleAnalysis
+            StyleAnalysis = styleAnalysis,
+            SemanticIssues = semanticIssues
         };
     }
 
@@ -107,7 +109,7 @@ public class RoslynAnalyzer
         return commentCount;
     }
 
-    private static SemanticAnalysis AnalyzeSemantics(SyntaxNode root, SemanticModel semanticModel)
+    private static SemanticAnalysis AnalyzeSemantics(SyntaxNode root, SemanticModel semanticModel, StyleConfiguration? styleConfig = null)
     {
         var typeInfos = new List<TypeInfo>();
         var symbolInfos = new List<SymbolInfo>();
@@ -144,8 +146,13 @@ public class RoslynAnalyzer
             }
         }
 
-        var unusedUsings = FindUnusedUsings(root, semanticModel);
-        var potentialNullRefs = FindPotentialNullReferences(root, semanticModel);
+        var unusedUsings = styleConfig?.EnableUnusedImportDetection == true 
+            ? FindUnusedUsings(root, semanticModel) 
+            : Array.Empty<CodeIssue>();
+            
+        var potentialNullRefs = styleConfig?.EnableNullReferenceDetection == true 
+            ? FindPotentialNullReferences(root, semanticModel) 
+            : Array.Empty<CodeIssue>();
 
         return new SemanticAnalysis
         {

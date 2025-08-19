@@ -176,6 +176,9 @@ public static class BuildResultFormatter
         // Style analysis
         DisplayStyleAnalysis(analysis.StyleAnalysis, options);
 
+        // Semantic analysis
+        DisplaySemanticAnalysis(analysis.SemanticIssues, options);
+
         // Syntax analysis details
         if (options.Verbosity == "detailed")
         {
@@ -381,6 +384,62 @@ public static class BuildResultFormatter
             parts.Add($"📋 {metrics.OrganizationViolations} organization");
             
         return parts.Any() ? string.Join(", ", parts) : "✨ clean code";
+    }
+
+    private static void DisplaySemanticAnalysis(SemanticIssue[] semanticIssues, CommandLineOptions options)
+    {
+        if (!semanticIssues.Any()) return;
+
+        var totalIssues = semanticIssues.Length;
+        Console.ForegroundColor = ConsoleColor.Blue;
+        Console.WriteLine($"    🔍 Semantic: {totalIssues} issues ({GetSemanticSummary(semanticIssues)})");
+        Console.ResetColor();
+
+        // Group issues by category
+        var issuesByCategory = semanticIssues.GroupBy(i => i.Category).ToList();
+
+        foreach (var categoryGroup in issuesByCategory)
+        {
+            var categoryIssues = categoryGroup.ToArray();
+            if (!categoryIssues.Any()) continue;
+
+            Console.ForegroundColor = ConsoleColor.Blue;
+            Console.WriteLine($"    🔍 {categoryGroup.Key} Issues:");
+            Console.ResetColor();
+
+            foreach (var issue in categoryIssues.OrderByDescending(i => i.Severity).Take(options.Verbosity == "detailed" ? 10 : 3))
+            {
+                var severityIcon = GetStyleSeverityIcon(issue.Severity);
+                Console.WriteLine($"      {severityIcon} Line {issue.Line}: {issue.Message}");
+                Console.WriteLine($"         💡 {issue.Recommendation}");
+            }
+
+            if (categoryIssues.Length > 3 && options.Verbosity != "detailed")
+            {
+                Console.WriteLine($"      ... and {categoryIssues.Length - 3} more {categoryGroup.Key.ToLower()} issues");
+            }
+        }
+    }
+
+    private static string GetSemanticSummary(SemanticIssue[] issues)
+    {
+        var parts = new List<string>();
+        
+        var unusedImports = issues.Count(i => i.Category == "Unused Imports");
+        var nullRefs = issues.Count(i => i.Category == "Null References");
+        var typeIssues = issues.Count(i => i.Category == "Type Analysis");
+        var codeFlow = issues.Count(i => i.Category == "Code Flow");
+        
+        if (unusedImports > 0)
+            parts.Add($"📦 {unusedImports} imports");
+        if (nullRefs > 0)
+            parts.Add($"⚠️ {nullRefs} null refs");
+        if (typeIssues > 0)
+            parts.Add($"🔧 {typeIssues} types");
+        if (codeFlow > 0)
+            parts.Add($"🌊 {codeFlow} flow");
+            
+        return parts.Any() ? string.Join(", ", parts) : "✨ clean semantics";
     }
 
     private static string GetStyleSeverityIcon(StyleSeverity severity)

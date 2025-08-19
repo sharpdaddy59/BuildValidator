@@ -34,6 +34,31 @@ public class StyleConfiguration
     public bool EnableOrganizationRules { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets whether semantic analysis rules are enabled.
+    /// </summary>
+    public bool EnableSemanticRules { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether unused import detection is enabled.
+    /// </summary>
+    public bool EnableUnusedImportDetection { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether null reference detection is enabled.
+    /// </summary>
+    public bool EnableNullReferenceDetection { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether type analysis is enabled.
+    /// </summary>
+    public bool EnableTypeAnalysis { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether code flow analysis is enabled.
+    /// </summary>
+    public bool EnableCodeFlowAnalysis { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets the set of rule IDs that are explicitly disabled.
     /// Rules in this set will not be executed even if their category is enabled.
     /// </summary>
@@ -50,6 +75,12 @@ public class StyleConfiguration
     /// Allows teams to make warnings into errors or reduce severity of certain rules.
     /// </summary>
     public Dictionary<string, StyleSeverity> SeverityOverrides { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets semantic-specific severity overrides for semantic analysis rules.
+    /// Allows teams to customize severity of semantic issues like null references, unused imports, etc.
+    /// </summary>
+    public Dictionary<string, StyleSeverity> SemanticSeverityOverrides { get; set; } = new();
 
     /// <summary>
     /// Gets or sets rule-specific parameters for customizing rule behavior.
@@ -108,6 +139,11 @@ public class StyleConfiguration
             "Encapsulation" => EnableEncapsulationRules,
             "Accessibility" => EnableAccessibilityRules,
             "Code Organization" => EnableOrganizationRules,
+            "Semantic Analysis" => EnableSemanticRules,
+            "Unused Imports" => EnableSemanticRules && EnableUnusedImportDetection,
+            "Null References" => EnableSemanticRules && EnableNullReferenceDetection,
+            "Type Analysis" => EnableSemanticRules && EnableTypeAnalysis,
+            "Code Flow" => EnableSemanticRules && EnableCodeFlowAnalysis,
             _ => true // Unknown categories are enabled by default
         };
     }
@@ -120,6 +156,11 @@ public class StyleConfiguration
     /// <returns>The effective severity to use.</returns>
     public StyleSeverity GetEffectiveSeverity(string ruleId, StyleSeverity defaultSeverity)
     {
+        // Check semantic-specific overrides first (more specific)
+        if (ruleId.StartsWith("SEM") && SemanticSeverityOverrides.TryGetValue(ruleId, out var semanticOverride))
+            return semanticOverride;
+
+        // Check general severity overrides
         if (SeverityOverrides.TryGetValue(ruleId, out var overrideSeverity))
             return overrideSeverity;
 
@@ -253,6 +294,11 @@ public class StyleConfiguration
             EnableEncapsulationRules = true,
             EnableAccessibilityRules = true,
             EnableOrganizationRules = true,
+            EnableSemanticRules = true,
+            EnableUnusedImportDetection = true,
+            EnableNullReferenceDetection = true,
+            EnableTypeAnalysis = true,
+            EnableCodeFlowAnalysis = true,
             TreatWarningsAsErrors = true,
             MinimumSeverity = StyleSeverity.Info,
             SeverityOverrides = new Dictionary<string, StyleSeverity>
@@ -262,6 +308,14 @@ public class StyleConfiguration
                 ["ENC001"] = StyleSeverity.Error, // Public fields are not allowed
                 ["USG001"] = StyleSeverity.Warning, // Using statement order
                 ["ORG003"] = StyleSeverity.Warning  // Member accessibility order
+            },
+            SemanticSeverityOverrides = new Dictionary<string, StyleSeverity>
+            {
+                ["SEM001"] = StyleSeverity.Error,   // Unused imports fail build
+                ["SEM010"] = StyleSeverity.Error,   // Null references fail build
+                ["SEM011"] = StyleSeverity.Error,   // Property null access fails build
+                ["SEM020"] = StyleSeverity.Warning, // Dead code as warning
+                ["SEM030"] = StyleSeverity.Warning  // Type safety as warning
             }
         };
     }
@@ -277,12 +331,21 @@ public class StyleConfiguration
             EnableEncapsulationRules = true,
             EnableAccessibilityRules = false,
             EnableOrganizationRules = false,
+            EnableSemanticRules = true,
+            EnableUnusedImportDetection = true,
+            EnableNullReferenceDetection = false, // Disable noisy null warnings
+            EnableTypeAnalysis = false,
+            EnableCodeFlowAnalysis = false,
             MinimumSeverity = StyleSeverity.Warning,
             DisabledRules = new HashSet<string>
             {
                 "USG001", // Don't enforce using statement order
                 "USG002", // Don't require blank lines between using groups
                 "ORG001", "ORG002", "ORG003" // Don't enforce member ordering
+            },
+            SemanticSeverityOverrides = new Dictionary<string, StyleSeverity>
+            {
+                ["SEM001"] = StyleSeverity.Warning  // Unused imports as warnings
             }
         };
     }

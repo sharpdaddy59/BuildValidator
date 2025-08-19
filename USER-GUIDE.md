@@ -514,6 +514,10 @@ Controls deep code analysis using compiler semantic information:
     "SEM001": "Warning",  // Unused using statements
     "SEM010": "Warning",  // Null reference on method calls
     "SEM011": "Warning",  // Null reference on property access
+    "SEM012": "Warning",  // Array/collection null access
+    "SEM013": "Warning",  // Nullable types without null checks
+    "SEM014": "Warning",  // Non-nullable types assigned null
+    "SEM015": "Warning",  // Methods returning null without nullable annotation
     "SEM020": "Info",     // Unreachable code after return
     "SEM030": "Info"      // Unnecessary type casts
   }
@@ -526,10 +530,10 @@ Controls deep code analysis using compiler semantic information:
 **Null Safety Rules (SEM010-SEM015)**:
 - **SEM010**: Potential null reference exceptions on method calls
 - **SEM011**: Potential null reference exceptions on property/field access
-- **SEM012**: *[Future]* Potential null reference on array/collection access
-- **SEM013**: *[Future]* Nullable types used without null checks
-- **SEM014**: *[Future]* Non-nullable reference types assigned null
-- **SEM015**: *[Future]* Possible null return from non-nullable method
+- **SEM012**: Potential null reference on array/collection access - detects `array[index]` and `list[item]` operations on potentially null collections
+- **SEM013**: Nullable types used without null checks - ensures nullable variables (`int?`, `string?`) are checked before member access
+- **SEM014**: Non-nullable reference types assigned null - catches direct null assignments to non-nullable reference types
+- **SEM015**: Methods that can return null but are not marked nullable - identifies methods with `return null;` but non-nullable return types
 
 **Code Flow Rules (SEM020-SEM025)**:
 - **SEM020**: Unreachable code after return/throw statements
@@ -604,6 +608,10 @@ Strict rules for enterprise development:
     "SEM001": "Error",    // Unused imports fail build
     "SEM010": "Error",    // Null references fail build
     "SEM011": "Error",    // Property null access fails build
+    "SEM012": "Error",    // Array/collection null access fails build
+    "SEM013": "Error",    // Nullable types must be checked
+    "SEM014": "Error",    // Null assignments not allowed
+    "SEM015": "Error",    // Return null requires nullable annotation
     "SEM020": "Warning",  // Dead code as warning
     "SEM030": "Warning"   // Type safety as warning
   }
@@ -720,6 +728,10 @@ Emphasis on API documentation quality:
     "SEM001": "Error",      // Unused imports fail builds
     "SEM010": "Info",       // Null references as guidance only
     "SEM011": "Warning",    // Property access as warnings
+    "SEM012": "Info",       // Array access as guidance
+    "SEM013": "Info",       // Nullable checks as guidance
+    "SEM014": "Warning",    // Null assignments as warnings
+    "SEM015": "Warning",    // Return null as warnings
     "SEM020": "Error",      // Dead code fails builds
     "SEM030": "Info"        // Type casts as informational
   },
@@ -741,6 +753,50 @@ Emphasis on API documentation quality:
   }
 }
 ```
+
+#### Null Reference Filtering
+
+**Complete null reference suppression**:
+```json
+{
+  "enableNullReferenceDetection": false  // Disables all null reference analysis
+}
+```
+
+**Granular null reference control** (recommended):
+```json
+{
+  "enableNullReferenceDetection": true,
+  "semanticSeverityOverrides": {
+    "SEM010": "Info",  // Member access null refs as guidance
+    "SEM011": "Info",  // Method call null refs as guidance  
+    "SEM012": "Info",  // Array/collection access as guidance
+    "SEM013": "Info",  // Nullable variable usage as guidance
+    "SEM014": "Info",  // Null assignments as guidance
+    "SEM015": "Info"   // Return null methods as guidance
+  },
+  "minimumSeverity": "Warning"  // Filters out Info-level issues
+}
+```
+
+**Selective null reference filtering**:
+```json
+{
+  "semanticSeverityOverrides": {
+    "SEM010": "Warning",  // Keep member access warnings
+    "SEM011": "Warning",  // Keep method call warnings
+    "SEM012": "Info",     // Filter array access (common false positives)
+    "SEM013": "Info",     // Filter nullable checks (legacy code)
+    "SEM014": "Error",    // Strict on null assignments
+    "SEM015": "Error"     // Strict on return null methods
+  }
+}
+```
+
+**Use cases**:
+- **Legacy codebases**: Set all to `Info` with `minimumSeverity: "Warning"`
+- **New projects**: Keep all as `Warning` or `Error` for strict null safety
+- **Mixed environments**: Use selective filtering per rule type
 
 #### File Exclusions
 

@@ -175,6 +175,164 @@ public static class SemanticAnalyzer
             }
         }
 
+        // SEM012: Array/collection access without null checks
+        foreach (var elementAccess in root.DescendantNodes().OfType<ElementAccessExpressionSyntax>())
+        {
+            var typeInfo = semanticModel.GetTypeInfo(elementAccess.Expression);
+            if (typeInfo.Type != null)
+            {
+                var typeName = typeInfo.Type.ToDisplayString();
+                if (typeName.EndsWith("?") || typeName.Contains("null") || 
+                    typeName.Contains("[]") || typeName.Contains("List") || typeName.Contains("Array"))
+                {
+                    var lineSpan = elementAccess.GetLocation().GetLineSpan();
+                    issues.Add(new SemanticIssue
+                    {
+                        Category = "Null References",
+                        Message = $"Potential null reference on array/collection access: {elementAccess.Expression}",
+                        Recommendation = "Add null check before array/collection access or use null-conditional operator (?[])",
+                        Line = lineSpan.StartLinePosition.Line + 1,
+                        Column = lineSpan.StartLinePosition.Character + 1,
+                        Severity = StyleSeverity.Warning,
+                        RuleId = "SEM012",
+                        CodeSnippet = elementAccess.ToString(),
+                        FilePath = filePath
+                    });
+                }
+            }
+        }
+
+        // SEM013: Nullable types used without null checks
+        foreach (var variable in root.DescendantNodes().OfType<VariableDeclarationSyntax>())
+        {
+            if (variable.Type is NullableTypeSyntax nullableType)
+            {
+                var variableName = variable.Variables.FirstOrDefault()?.Identifier.ValueText;
+                if (!string.IsNullOrEmpty(variableName))
+                {
+                    // Look for usage without null checks in the same scope
+                    var parentMethod = variable.FirstAncestorOrSelf<MethodDeclarationSyntax>();
+                    if (parentMethod != null)
+                    {
+                        var usages = parentMethod.DescendantNodes()
+                            .OfType<IdentifierNameSyntax>()
+                            .Where(id => id.Identifier.ValueText == variableName);
+
+                        foreach (var usage in usages)
+                        {
+                            // Check if usage is in a null-conditional context
+                            var parent = usage.Parent;
+                            bool hasNullCheck = false;
+                            
+                            // Simple heuristic: check if it's used with ?. or within an if statement checking for null
+                            while (parent != null)
+                            {
+                                if (parent is ConditionalAccessExpressionSyntax ||
+                                    (parent is IfStatementSyntax ifStmt && 
+                                     ifStmt.Condition.ToString().Contains($"{variableName} != null")))
+                                {
+                                    hasNullCheck = true;
+                                    break;
+                                }
+                                parent = parent.Parent;
+                            }
+
+                            if (!hasNullCheck && usage.Parent is MemberAccessExpressionSyntax)
+                            {
+                                var lineSpan = usage.GetLocation().GetLineSpan();
+                                issues.Add(new SemanticIssue
+                                {
+                                    Category = "Null References",
+                                    Message = $"Nullable variable '{variableName}' used without null check",
+                                    Recommendation = $"Add null check: if ({variableName} != null) or use null-conditional operator: {variableName}?.",
+                                    Line = lineSpan.StartLinePosition.Line + 1,
+                                    Column = lineSpan.StartLinePosition.Character + 1,
+                                    Severity = StyleSeverity.Warning,
+                                    RuleId = "SEM013",
+                                    CodeSnippet = usage.Parent.ToString(),
+                                    FilePath = filePath
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // SEM014: Non-nullable reference types assigned null
+        foreach (var assignment in root.DescendantNodes().OfType<AssignmentExpressionSyntax>())
+        {
+            if (assignment.Right.IsKind(SyntaxKind.NullLiteralExpression))
+            {
+                var leftTypeInfo = semanticModel.GetTypeInfo(assignment.Left);
+                if (leftTypeInfo.Type != null)
+                {
+                    var typeName = leftTypeInfo.Type.ToDisplayString();
+                    
+                    // Check if it's a reference type that shouldn't be nullable
+                    if (leftTypeInfo.Type.CanBeReferencedByName && 
+                        leftTypeInfo.Type.IsReferenceType && 
+                        !typeName.EndsWith("?") &&
+                        leftTypeInfo.Type.NullableAnnotation != NullableAnnotation.Annotated)
+                    {
+                        var lineSpan = assignment.GetLocation().GetLineSpan();
+                        issues.Add(new SemanticIssue
+                        {
+                            Category = "Null References",
+                            Message = $"Non-nullable reference type '{typeName}' assigned null",
+                            Recommendation = "Use nullable reference type (string?) or assign a non-null value",
+                            Line = lineSpan.StartLinePosition.Line + 1,
+                            Column = lineSpan.StartLinePosition.Character + 1,
+                            Severity = StyleSeverity.Warning,
+                            RuleId = "SEM014",
+                            CodeSnippet = assignment.ToString(),
+                            FilePath = filePath
+                        });
+                    }
+                }
+            }
+        }
+
+        // SEM015: Methods that can return null but are not marked nullable
+        foreach (var method in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
+        {
+            if (method.ReturnType != null && method.Body != null)
+            {
+                var returnTypeInfo = semanticModel.GetTypeInfo(method.ReturnType);
+                if (returnTypeInfo.Type != null && returnTypeInfo.Type.IsReferenceType)
+                {
+                    var typeName = returnTypeInfo.Type.ToDisplayString();
+                    
+                    // Check if method can return null but return type is not nullable
+                    if (!typeName.EndsWith("?") && 
+                        returnTypeInfo.Type.NullableAnnotation != NullableAnnotation.Annotated)
+                    {
+                        // Look for return null statements
+                        var nullReturns = method.Body.DescendantNodes()
+                            .OfType<ReturnStatementSyntax>()
+                            .Where(r => r.Expression?.IsKind(SyntaxKind.NullLiteralExpression) == true);
+
+                        if (nullReturns.Any())
+                        {
+                            var lineSpan = method.Identifier.GetLocation().GetLineSpan();
+                            issues.Add(new SemanticIssue
+                            {
+                                Category = "Null References",
+                                Message = $"Method '{method.Identifier.ValueText}' can return null but return type is not nullable",
+                                Recommendation = $"Change return type to '{typeName}?' or ensure method never returns null",
+                                Line = lineSpan.StartLinePosition.Line + 1,
+                                Column = lineSpan.StartLinePosition.Character + 1,
+                                Severity = StyleSeverity.Warning,
+                                RuleId = "SEM015",
+                                CodeSnippet = method.Identifier.ToString(),
+                                FilePath = filePath
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
         return issues;
     }
 

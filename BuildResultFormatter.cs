@@ -158,17 +158,7 @@ public static class BuildResultFormatter
             Console.ResetColor();
         }
 
-        // Potential null references
-        if (analysis.SemanticAnalysis.PotentialNullReferences.Any())
-        {
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("    ⚠️  Potential null references:");
-            foreach (var nullRef in analysis.SemanticAnalysis.PotentialNullReferences)
-            {
-                Console.WriteLine($"      - Line {nullRef.Line}: {nullRef.Message}");
-            }
-            Console.ResetColor();
-        }
+        // Note: Legacy null reference display removed - now handled by configurable semantic analysis
 
         // Performance analysis
         DisplayPerformanceAnalysis(analysis.PerformanceAnalysis, options);

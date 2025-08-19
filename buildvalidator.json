@@ -18,10 +18,8 @@
     "ENC001": "Warning"
   },
   "semanticSeverityOverrides": {
-    "SEM010": "Info",
     "SEM011": "Info",
-    "SEM020": "Info",
-	"SEM030": "Info"
+	"SEM013": "Info"
   },
   "excludePatterns": [
     "**/bin/**",

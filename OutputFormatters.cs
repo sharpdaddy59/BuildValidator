@@ -378,18 +378,24 @@ public static class OutputFormatters
                 foreach (var analysis in result.AnalysisResults)
                 {
                     var fileName = Path.GetFileName(analysis.FilePath);
-                    md.AppendLine($"#### {fileName}");
+                    
+                    // Make file name more prominent with larger heading and separator
+                    md.AppendLine("---");
                     md.AppendLine();
+                    md.AppendLine($"## 📄 **{fileName}**");
+                    md.AppendLine();
+                    md.AppendLine("**📊 Code Metrics:**");
                     md.AppendLine($"- **Complexity**: {analysis.CodeMetrics.CyclomaticComplexity}");
                     md.AppendLine($"- **Maintainability**: {analysis.CodeMetrics.MaintainabilityIndex:F0}");
                     md.AppendLine($"- **Methods**: {analysis.CodeMetrics.MethodCount}");
                     md.AppendLine($"- **Classes**: {analysis.CodeMetrics.ClassCount}");
                     md.AppendLine($"- **Lines of Code**: {analysis.SyntaxAnalysis.CodeLines}");
 
+                    // Code Issues
                     if (analysis.SemanticAnalysis.UnusedUsings.Any() || analysis.SemanticAnalysis.PotentialNullReferences.Any())
                     {
                         md.AppendLine();
-                        md.AppendLine("**Issues Found:**");
+                        md.AppendLine("**🚨 Code Issues:**");
                         
                         foreach (var issue in analysis.SemanticAnalysis.UnusedUsings)
                         {
@@ -399,6 +405,47 @@ public static class OutputFormatters
                         foreach (var issue in analysis.SemanticAnalysis.PotentialNullReferences)
                         {
                             md.AppendLine($"- Line {issue.Line}: {issue.Message}");
+                        }
+                    }
+
+                    // Performance Analysis
+                    var allPerformanceIssues = analysis.PerformanceAnalysis.LinqPerformanceIssues
+                        .Concat(analysis.PerformanceAnalysis.AllocationIssues)
+                        .Concat(analysis.PerformanceAnalysis.AsyncPerformanceIssues)
+                        .Concat(analysis.PerformanceAnalysis.StringPerformanceIssues)
+                        .ToArray();
+
+                    if (allPerformanceIssues.Any())
+                    {
+                        md.AppendLine();
+                        md.AppendLine("**⚡ Performance Analysis:**");
+                        md.AppendLine($"- Total Issues: {analysis.PerformanceAnalysis.Metrics.TotalPerformanceIssues}");
+                        md.AppendLine($"- High Severity: {analysis.PerformanceAnalysis.Metrics.HighSeverityIssues}");
+                        md.AppendLine($"- Medium Severity: {analysis.PerformanceAnalysis.Metrics.MediumSeverityIssues}");
+                        md.AppendLine($"- Low Severity: {analysis.PerformanceAnalysis.Metrics.LowSeverityIssues}");
+                        
+                        md.AppendLine();
+                        md.AppendLine("**📋 Performance Issues by Category:**");
+                        
+                        var groupedIssues = allPerformanceIssues.GroupBy(i => i.Category);
+                        foreach (var group in groupedIssues)
+                        {
+                            md.AppendLine($"- **{group.Key}** ({group.Count()} issues):");
+                            foreach (var issue in group.OrderByDescending(i => i.Severity).Take(5)) // Top 5 issues per category
+                            {
+                                var severityIcon = issue.Severity switch
+                                {
+                                    PerformanceSeverity.High => "🔴",
+                                    PerformanceSeverity.Medium => "🟡",
+                                    PerformanceSeverity.Low => "🟢",
+                                    _ => "⚪"
+                                };
+                                md.AppendLine($"  - {severityIcon} Line {issue.Line}: {issue.Message}");
+                                if (!string.IsNullOrEmpty(issue.Recommendation))
+                                {
+                                    md.AppendLine($"    - 💡 {issue.Recommendation}");
+                                }
+                            }
                         }
                     }
 

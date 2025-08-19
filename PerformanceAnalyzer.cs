@@ -112,6 +112,154 @@ public class PerformanceAnalyzer
                     CodeSnippet = invocation.ToString()
                 });
             }
+
+            // Pattern 4: ToList().Count() instead of Count()
+            if (memberName == "Count" && 
+                memberAccess.Expression is InvocationExpressionSyntax toListInvocation &&
+                toListInvocation.Expression is MemberAccessExpressionSyntax toListMember &&
+                toListMember.Name.Identifier.ValueText == "ToList")
+            {
+                var lineSpan = invocation.GetLocation().GetLineSpan();
+                issues.Add(new PerformanceIssue
+                {
+                    Message = "Using ToList().Count() instead of Count()",
+                    Line = lineSpan.StartLinePosition.Line + 1,
+                    Column = lineSpan.StartLinePosition.Character + 1,
+                    Category = "LINQ Performance",
+                    Severity = PerformanceSeverity.Medium,
+                    Recommendation = "Use Count() directly instead of materializing with ToList() first",
+                    CodeSnippet = invocation.ToString()
+                });
+            }
+
+            // Pattern 5: Where().First() instead of First(predicate)
+            if (memberName == "First" && 
+                memberAccess.Expression is InvocationExpressionSyntax whereFirstInvocation &&
+                whereFirstInvocation.Expression is MemberAccessExpressionSyntax whereFirstMember &&
+                whereFirstMember.Name.Identifier.ValueText == "Where")
+            {
+                var lineSpan = invocation.GetLocation().GetLineSpan();
+                issues.Add(new PerformanceIssue
+                {
+                    Message = "Using Where().First() instead of First(predicate)",
+                    Line = lineSpan.StartLinePosition.Line + 1,
+                    Column = lineSpan.StartLinePosition.Character + 1,
+                    Category = "LINQ Performance",
+                    Severity = PerformanceSeverity.Low,
+                    Recommendation = "Combine Where() and First() into First(predicate)",
+                    CodeSnippet = invocation.ToString()
+                });
+            }
+
+            // Pattern 6: Where().FirstOrDefault() instead of FirstOrDefault(predicate)
+            if (memberName == "FirstOrDefault" && 
+                memberAccess.Expression is InvocationExpressionSyntax whereDefaultInvocation &&
+                whereDefaultInvocation.Expression is MemberAccessExpressionSyntax whereDefaultMember &&
+                whereDefaultMember.Name.Identifier.ValueText == "Where")
+            {
+                var lineSpan = invocation.GetLocation().GetLineSpan();
+                issues.Add(new PerformanceIssue
+                {
+                    Message = "Using Where().FirstOrDefault() instead of FirstOrDefault(predicate)",
+                    Line = lineSpan.StartLinePosition.Line + 1,
+                    Column = lineSpan.StartLinePosition.Character + 1,
+                    Category = "LINQ Performance",
+                    Severity = PerformanceSeverity.Low,
+                    Recommendation = "Combine Where() and FirstOrDefault() into FirstOrDefault(predicate)",
+                    CodeSnippet = invocation.ToString()
+                });
+            }
+
+            // Pattern 7: ToList().Any() instead of Any()
+            if (memberName == "Any" && 
+                memberAccess.Expression is InvocationExpressionSyntax toListAnyInvocation &&
+                toListAnyInvocation.Expression is MemberAccessExpressionSyntax toListAnyMember &&
+                toListAnyMember.Name.Identifier.ValueText == "ToList")
+            {
+                var lineSpan = invocation.GetLocation().GetLineSpan();
+                issues.Add(new PerformanceIssue
+                {
+                    Message = "Using ToList().Any() instead of Any()",
+                    Line = lineSpan.StartLinePosition.Line + 1,
+                    Column = lineSpan.StartLinePosition.Character + 1,
+                    Category = "LINQ Performance",
+                    Severity = PerformanceSeverity.Medium,
+                    Recommendation = "Use Any() directly without materializing collection first",
+                    CodeSnippet = invocation.ToString()
+                });
+            }
+
+            // Pattern 8: Where().Any() instead of Any(predicate)
+            if (memberName == "Any" && 
+                memberAccess.Expression is InvocationExpressionSyntax whereAnyInvocation &&
+                whereAnyInvocation.Expression is MemberAccessExpressionSyntax whereAnyMember &&
+                whereAnyMember.Name.Identifier.ValueText == "Where")
+            {
+                var lineSpan = invocation.GetLocation().GetLineSpan();
+                issues.Add(new PerformanceIssue
+                {
+                    Message = "Using Where().Any() instead of Any(predicate)",
+                    Line = lineSpan.StartLinePosition.Line + 1,
+                    Column = lineSpan.StartLinePosition.Character + 1,
+                    Category = "LINQ Performance",
+                    Severity = PerformanceSeverity.Low,
+                    Recommendation = "Combine Where() and Any() into Any(predicate)",
+                    CodeSnippet = invocation.ToString()
+                });
+            }
+
+            // Pattern 9: Select().ToList() when ForEach would be better
+            if (memberName == "ToList" && 
+                memberAccess.Expression is InvocationExpressionSyntax selectInvocation &&
+                selectInvocation.Expression is MemberAccessExpressionSyntax selectMember &&
+                selectMember.Name.Identifier.ValueText == "Select")
+            {
+                // Check if the result is only used for iteration
+                var parent = invocation.Parent;
+                if (parent is MemberAccessExpressionSyntax parentMember && 
+                    (parentMember.Name.Identifier.ValueText == "ForEach" || 
+                     invocation.FirstAncestorOrSelf<ForEachStatementSyntax>() != null))
+                {
+                    var lineSpan = invocation.GetLocation().GetLineSpan();
+                    issues.Add(new PerformanceIssue
+                    {
+                        Message = "Materializing Select() with ToList() for iteration only",
+                        Line = lineSpan.StartLinePosition.Line + 1,
+                        Column = lineSpan.StartLinePosition.Character + 1,
+                        Category = "LINQ Performance",
+                        Severity = PerformanceSeverity.Low,
+                        Recommendation = "Consider direct iteration over Select() without ToList()",
+                        CodeSnippet = invocation.ToString()
+                    });
+                }
+            }
+
+            // Pattern 10: Unnecessary Select() with identity function
+            if (memberName == "Select")
+            {
+                var arguments = invocation.ArgumentList.Arguments;
+                if (arguments.Count == 1)
+                {
+                    var argument = arguments[0].Expression;
+                    // Check for x => x pattern (identity function)
+                    if (argument is SimpleLambdaExpressionSyntax lambda &&
+                        lambda.Body is IdentifierNameSyntax identifier &&
+                        identifier.Identifier.ValueText == lambda.Parameter.Identifier.ValueText)
+                    {
+                        var lineSpan = invocation.GetLocation().GetLineSpan();
+                        issues.Add(new PerformanceIssue
+                        {
+                            Message = "Unnecessary Select() with identity function",
+                            Line = lineSpan.StartLinePosition.Line + 1,
+                            Column = lineSpan.StartLinePosition.Character + 1,
+                            Category = "LINQ Performance",
+                            Severity = PerformanceSeverity.Low,
+                            Recommendation = "Remove redundant Select(x => x)",
+                            CodeSnippet = invocation.ToString()
+                        });
+                    }
+                }
+            }
         }
 
         return issues;

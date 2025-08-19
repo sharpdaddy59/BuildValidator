@@ -46,12 +46,43 @@ public record StyleMetrics
 
 public class StyleValidationAnalyzer
 {
-    public static StyleAnalysis AnalyzeStyle(SyntaxNode root, SemanticModel? semanticModel = null, string? filePath = null)
+    public static StyleAnalysis AnalyzeStyle(SyntaxNode root, SemanticModel? semanticModel = null, string? filePath = null, StyleConfiguration? config = null)
     {
-        var documentationIssues = AnalyzeDocumentation(root).ToArray();
-        var encapsulationIssues = AnalyzeEncapsulation(root).ToArray();
-        var accessibilityIssues = AnalyzeAccessibility(root).ToArray();
-        var organizationIssues = AnalyzeCodeOrganization(root, filePath).ToArray();
+        config ??= StyleConfiguration.Default;
+
+        // Check if file should be analyzed
+        if (!string.IsNullOrEmpty(filePath) && !config.ShouldAnalyzeFile(filePath))
+        {
+            return new StyleAnalysis
+            {
+                DocumentationIssues = Array.Empty<StyleIssue>(),
+                EncapsulationIssues = Array.Empty<StyleIssue>(),
+                AccessibilityIssues = Array.Empty<StyleIssue>(),
+                OrganizationIssues = Array.Empty<StyleIssue>(),
+                Metrics = new StyleMetrics
+                {
+                    TotalStyleIssues = 0,
+                    AccessibilityViolations = 0,
+                    DocumentationViolations = 0,
+                    EncapsulationViolations = 0,
+                    OrganizationViolations = 0,
+                    PublicMembersWithoutDocs = 0,
+                    PublicFieldsCount = 0,
+                    PrivateFieldsExposedCount = 0
+                }
+            };
+        }
+
+        var documentationIssues = config.EnableDocumentationRules ? AnalyzeDocumentation(root, config).ToArray() : Array.Empty<StyleIssue>();
+        var encapsulationIssues = config.EnableEncapsulationRules ? AnalyzeEncapsulation(root, config).ToArray() : Array.Empty<StyleIssue>();
+        var accessibilityIssues = config.EnableAccessibilityRules ? AnalyzeAccessibility(root, config).ToArray() : Array.Empty<StyleIssue>();
+        var organizationIssues = config.EnableOrganizationRules ? AnalyzeCodeOrganization(root, filePath, config).ToArray() : Array.Empty<StyleIssue>();
+
+        // Apply rule-level filtering and severity overrides
+        documentationIssues = FilterAndAdjustIssues(documentationIssues, config).ToArray();
+        encapsulationIssues = FilterAndAdjustIssues(encapsulationIssues, config).ToArray();
+        accessibilityIssues = FilterAndAdjustIssues(accessibilityIssues, config).ToArray();
+        organizationIssues = FilterAndAdjustIssues(organizationIssues, config).ToArray();
 
         var metrics = CalculateStyleMetrics(documentationIssues, encapsulationIssues, accessibilityIssues, organizationIssues, root);
 
@@ -65,7 +96,7 @@ public class StyleValidationAnalyzer
         };
     }
 
-    private static IEnumerable<StyleIssue> AnalyzeDocumentation(SyntaxNode root)
+    private static IEnumerable<StyleIssue> AnalyzeDocumentation(SyntaxNode root, StyleConfiguration config)
     {
         var issues = new List<StyleIssue>();
 
@@ -186,7 +217,7 @@ public class StyleValidationAnalyzer
         return issues;
     }
 
-    private static IEnumerable<StyleIssue> AnalyzeEncapsulation(SyntaxNode root)
+    private static IEnumerable<StyleIssue> AnalyzeEncapsulation(SyntaxNode root, StyleConfiguration config)
     {
         var issues = new List<StyleIssue>();
 
@@ -239,7 +270,7 @@ public class StyleValidationAnalyzer
         return issues;
     }
 
-    private static IEnumerable<StyleIssue> AnalyzeAccessibility(SyntaxNode root)
+    private static IEnumerable<StyleIssue> AnalyzeAccessibility(SyntaxNode root, StyleConfiguration config)
     {
         var issues = new List<StyleIssue>();
 
@@ -303,7 +334,7 @@ public class StyleValidationAnalyzer
         return issues;
     }
 
-    private static IEnumerable<StyleIssue> AnalyzeCodeOrganization(SyntaxNode root, string? filePath)
+    private static IEnumerable<StyleIssue> AnalyzeCodeOrganization(SyntaxNode root, string? filePath, StyleConfiguration config)
     {
         var issues = new List<StyleIssue>();
 
@@ -320,6 +351,29 @@ public class StyleValidationAnalyzer
         issues.AddRange(AnalyzeMemberOrganization(root));
 
         return issues;
+    }
+
+    /// <summary>
+    /// Filters issues based on configuration rules and adjusts their severity.
+    /// </summary>
+    private static IEnumerable<StyleIssue> FilterAndAdjustIssues(IEnumerable<StyleIssue> issues, StyleConfiguration config)
+    {
+        return issues
+            .Where(issue => issue.RuleId != null && config.IsRuleEnabled(issue.RuleId, issue.Category))
+            .Select(issue => 
+            {
+                var effectiveSeverity = config.GetEffectiveSeverity(issue.RuleId!, issue.Severity);
+                
+                // Check if issue meets minimum severity threshold
+                if (!config.ShouldReportIssue(effectiveSeverity))
+                    return null;
+                
+                // Return issue with adjusted severity if needed
+                return effectiveSeverity != issue.Severity 
+                    ? issue with { Severity = effectiveSeverity }
+                    : issue;
+            })
+            .Where(issue => issue != null)!;
     }
 
     private static IEnumerable<StyleIssue> AnalyzeUsingStatements(SyntaxNode root)

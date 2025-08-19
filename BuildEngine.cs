@@ -241,6 +241,10 @@ public class BuildEngine
     {
         var analyzer = new RoslynAnalyzer();
         var analysisResults = new List<CodeAnalysisResult>();
+        
+        // Load style configuration from project directory
+        var projectDir = Path.GetDirectoryName(project.FilePath);
+        var styleConfig = StyleConfigurationLoader.LoadConfiguration(projectDir);
 
         foreach (var document in project.Documents)
         {
@@ -251,7 +255,7 @@ public class BuildEngine
                     var sourceText = await document.GetTextAsync();
                     var sourceCode = sourceText.ToString();
                     
-                    var analysis = await analyzer.AnalyzeCodeAsync(sourceCode, document.FilePath);
+                    var analysis = await analyzer.AnalyzeCodeAsync(sourceCode, document.FilePath, styleConfig);
                     analysisResults.Add(analysis);
                 }
                 catch (Exception ex)
@@ -279,6 +283,9 @@ public class BuildEngine
             var projectDir = Path.GetDirectoryName(projectPath);
             if (projectDir != null)
             {
+                // Load style configuration from project directory
+                var styleConfig = StyleConfigurationLoader.LoadConfiguration(projectDir);
+                
                 var csFiles = Directory.GetFiles(projectDir, "*.cs", SearchOption.AllDirectories)
                     .Where(f => !f.Contains("bin") && !f.Contains("obj")) // Skip build output
                     .ToList();
@@ -287,7 +294,7 @@ public class BuildEngine
                 {
                     try
                     {
-                        var analysis = await analyzer.AnalyzeFileAsync(csFile);
+                        var analysis = await analyzer.AnalyzeFileAsync(csFile, styleConfig);
                         analysisResults.Add(analysis);
                     }
                     catch (Exception ex)

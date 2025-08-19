@@ -1,0 +1,25 @@
+{
+  "enableDocumentationRules": true,
+  "enableEncapsulationRules": true,
+  "enableAccessibilityRules": true,
+  "enableOrganizationRules": true,
+  "disabledRules": [
+    "USG002"
+  ],
+  "severityOverrides": {
+    "DOC001": "Error",
+    "DOC002": "Error", 
+    "ENC001": "Error"
+  },
+  "minimumSeverity": "Info",
+  "treatWarningsAsErrors": false,
+  "excludePatterns": [
+    "**/bin/**",
+    "**/obj/**",
+    "**/Properties/**",
+    "**/*.Designer.cs",
+    "**/*.g.cs",
+    "**/*.generated.cs"
+  ],
+  "analyzeGeneratedCode": false
+}

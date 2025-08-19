@@ -6,7 +6,7 @@ namespace BuildValidator;
 
 public class RoslynAnalyzer
 {
-    public async Task<CodeAnalysisResult> AnalyzeCodeAsync(string sourceCode, string filePath = "temp.cs")
+    public async Task<CodeAnalysisResult> AnalyzeCodeAsync(string sourceCode, string filePath = "temp.cs", StyleConfiguration? styleConfig = null)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(sourceCode, path: filePath);
         var compilation = CreateCompilation(syntaxTree);
@@ -18,7 +18,7 @@ public class RoslynAnalyzer
         var codeMetrics = CalculateMetrics(root, semanticModel);
         var compilationIssues = GetCompilationIssues(compilation);
         var performanceAnalysis = PerformanceAnalyzer.AnalyzePerformance(root, semanticModel);
-        var styleAnalysis = StyleValidationAnalyzer.AnalyzeStyle(root, semanticModel, filePath);
+        var styleAnalysis = StyleValidationAnalyzer.AnalyzeStyle(root, semanticModel, filePath, styleConfig);
 
         return new CodeAnalysisResult
         {
@@ -33,10 +33,10 @@ public class RoslynAnalyzer
         };
     }
 
-    public async Task<CodeAnalysisResult> AnalyzeFileAsync(string filePath)
+    public async Task<CodeAnalysisResult> AnalyzeFileAsync(string filePath, StyleConfiguration? styleConfig = null)
     {
         var sourceCode = await File.ReadAllTextAsync(filePath);
-        return await AnalyzeCodeAsync(sourceCode, filePath);
+        return await AnalyzeCodeAsync(sourceCode, filePath, styleConfig);
     }
 
     private static CSharpCompilation CreateCompilation(SyntaxTree syntaxTree)

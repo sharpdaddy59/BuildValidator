@@ -17,6 +17,7 @@ public class RoslynAnalyzer
         var semanticAnalysis = AnalyzeSemantics(root, semanticModel);
         var codeMetrics = CalculateMetrics(root, semanticModel);
         var compilationIssues = GetCompilationIssues(compilation);
+        var performanceAnalysis = PerformanceAnalyzer.AnalyzePerformance(root, semanticModel);
 
         return new CodeAnalysisResult
         {
@@ -25,7 +26,8 @@ public class RoslynAnalyzer
             SyntaxAnalysis = syntaxAnalysis,
             SemanticAnalysis = semanticAnalysis,
             CodeMetrics = codeMetrics,
-            CompilationIssues = compilationIssues
+            CompilationIssues = compilationIssues,
+            PerformanceAnalysis = performanceAnalysis
         };
     }
 

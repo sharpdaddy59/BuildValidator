@@ -10,6 +10,7 @@ public record CodeAnalysisResult
     public required SemanticAnalysis SemanticAnalysis { get; init; }
     public required CodeMetrics CodeMetrics { get; init; }
     public required CompilationIssue[] CompilationIssues { get; init; }
+    public required PerformanceAnalysis PerformanceAnalysis { get; init; }
 }
 
 public record SyntaxAnalysis
@@ -78,4 +79,42 @@ public record CodeIssue
     public required int Line { get; init; }
     public required int Column { get; init; }
     public required string? FilePath { get; init; }
+}
+
+public record PerformanceAnalysis
+{
+    public required PerformanceIssue[] LinqPerformanceIssues { get; init; }
+    public required PerformanceIssue[] AllocationIssues { get; init; }
+    public required PerformanceIssue[] AsyncPerformanceIssues { get; init; }
+    public required PerformanceIssue[] StringPerformanceIssues { get; init; }
+    public required PerformanceMetrics Metrics { get; init; }
+}
+
+public record PerformanceIssue
+{
+    public required string Message { get; init; }
+    public required int Line { get; init; }
+    public required int Column { get; init; }
+    public required string Category { get; init; }
+    public required PerformanceSeverity Severity { get; init; }
+    public required string Recommendation { get; init; }
+    public required string? CodeSnippet { get; init; }
+}
+
+public record PerformanceMetrics
+{
+    public required int TotalPerformanceIssues { get; init; }
+    public required int HighSeverityIssues { get; init; }
+    public required int MediumSeverityIssues { get; init; }
+    public required int LowSeverityIssues { get; init; }
+    public required int LinqUsageCount { get; init; }
+    public required int AsyncMethodCount { get; init; }
+    public required int StringConcatenationCount { get; init; }
+}
+
+public enum PerformanceSeverity
+{
+    Low,
+    Medium,
+    High
 }

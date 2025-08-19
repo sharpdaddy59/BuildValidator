@@ -170,6 +170,9 @@ public static class BuildResultFormatter
             Console.ResetColor();
         }
 
+        // Performance analysis
+        DisplayPerformanceAnalysis(analysis.PerformanceAnalysis, options);
+
         // Syntax analysis details
         if (options.Verbosity == "detailed")
         {
@@ -178,5 +181,88 @@ public static class BuildResultFormatter
             Console.WriteLine($"    🏗️  Structure: {analysis.SyntaxAnalysis.ClassNames.Length} classes, {analysis.SyntaxAnalysis.PropertyNames.Length} properties");
             Console.ResetColor();
         }
+    }
+
+    private static void DisplayPerformanceAnalysis(PerformanceAnalysis performance, CommandLineOptions options)
+    {
+        var allIssues = performance.LinqPerformanceIssues
+            .Concat(performance.AllocationIssues)
+            .Concat(performance.AsyncPerformanceIssues)
+            .Concat(performance.StringPerformanceIssues)
+            .ToArray();
+
+        if (!allIssues.Any()) return;
+
+        // Summary for normal verbosity
+        if (performance.Metrics.TotalPerformanceIssues > 0)
+        {
+            Console.ForegroundColor = GetPerformanceColor(performance.Metrics.HighSeverityIssues);
+            Console.WriteLine($"    ⚡ Performance: {performance.Metrics.TotalPerformanceIssues} issues " +
+                            $"(🔴 {performance.Metrics.HighSeverityIssues} high, " +
+                            $"🟡 {performance.Metrics.MediumSeverityIssues} medium, " +
+                            $"🟢 {performance.Metrics.LowSeverityIssues} low)");
+            Console.ResetColor();
+        }
+
+        // Detailed analysis for verbose modes
+        if (options.Verbosity == "detailed")
+        {
+            DisplayPerformanceIssuesByCategory("LINQ Performance", performance.LinqPerformanceIssues);
+            DisplayPerformanceIssuesByCategory("Memory Allocation", performance.AllocationIssues);
+            DisplayPerformanceIssuesByCategory("Async Performance", performance.AsyncPerformanceIssues);
+            DisplayPerformanceIssuesByCategory("String Performance", performance.StringPerformanceIssues);
+        }
+    }
+
+    private static void DisplayPerformanceIssuesByCategory(string category, PerformanceIssue[] issues)
+    {
+        if (!issues.Any()) return;
+
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine($"    ⚡ {category} Issues:");
+        Console.ResetColor();
+
+        foreach (var issue in issues.OrderByDescending(i => i.Severity))
+        {
+            var severityIcon = issue.Severity switch
+            {
+                PerformanceSeverity.High => "🔴",
+                PerformanceSeverity.Medium => "🟡",
+                PerformanceSeverity.Low => "🟢",
+                _ => "⚪"
+            };
+
+            Console.ForegroundColor = GetSeverityColor(issue.Severity);
+            Console.WriteLine($"      {severityIcon} Line {issue.Line}: {issue.Message}");
+            
+            if (issue.Recommendation != null)
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"         💡 {issue.Recommendation}");
+            }
+            
+            Console.ResetColor();
+        }
+    }
+
+    private static ConsoleColor GetPerformanceColor(int highSeverityCount)
+    {
+        return highSeverityCount switch
+        {
+            0 => ConsoleColor.Green,
+            <= 2 => ConsoleColor.Yellow,
+            _ => ConsoleColor.Red
+        };
+    }
+
+    private static ConsoleColor GetSeverityColor(PerformanceSeverity severity)
+    {
+        return severity switch
+        {
+            PerformanceSeverity.High => ConsoleColor.Red,
+            PerformanceSeverity.Medium => ConsoleColor.Yellow,
+            PerformanceSeverity.Low => ConsoleColor.Green,
+            _ => ConsoleColor.Gray
+        };
     }
 }

@@ -66,7 +66,7 @@ public static class OutputFormatters
 
             // Add code issues if available
             csv.AppendLine();
-            csv.AppendLine("Type,ProjectName,FileName,IssueType,Line,Column,Message");
+            csv.AppendLine("Type,ProjectName,FileName,IssueType,Severity,Line,Column,Message,Recommendation");
             
             foreach (var result in results.Where(r => r.AnalysisResults != null))
             {
@@ -77,13 +77,24 @@ public static class OutputFormatters
                     // Unused usings
                     foreach (var issue in analysis.SemanticAnalysis.UnusedUsings)
                     {
-                        csv.AppendLine($"CodeIssue,\"{EscapeCsv(result.ProjectName)}\",\"{EscapeCsv(fileName)}\",UnusedUsing,{issue.Line},{issue.Column},\"{EscapeCsv(issue.Message)}\"");
+                        csv.AppendLine($"CodeIssue,\"{EscapeCsv(result.ProjectName)}\",\"{EscapeCsv(fileName)}\",UnusedUsing,Low,{issue.Line},{issue.Column},\"{EscapeCsv(issue.Message)}\",");
                     }
                     
                     // Potential null references
                     foreach (var issue in analysis.SemanticAnalysis.PotentialNullReferences)
                     {
-                        csv.AppendLine($"CodeIssue,\"{EscapeCsv(result.ProjectName)}\",\"{EscapeCsv(fileName)}\",PotentialNullReference,{issue.Line},{issue.Column},\"{EscapeCsv(issue.Message)}\"");
+                        csv.AppendLine($"CodeIssue,\"{EscapeCsv(result.ProjectName)}\",\"{EscapeCsv(fileName)}\",PotentialNullReference,Medium,{issue.Line},{issue.Column},\"{EscapeCsv(issue.Message)}\",");
+                    }
+
+                    // Performance issues
+                    var allPerformanceIssues = analysis.PerformanceAnalysis.LinqPerformanceIssues
+                        .Concat(analysis.PerformanceAnalysis.AllocationIssues)
+                        .Concat(analysis.PerformanceAnalysis.AsyncPerformanceIssues)
+                        .Concat(analysis.PerformanceAnalysis.StringPerformanceIssues);
+
+                    foreach (var issue in allPerformanceIssues)
+                    {
+                        csv.AppendLine($"PerformanceIssue,\"{EscapeCsv(result.ProjectName)}\",\"{EscapeCsv(fileName)}\",\"{EscapeCsv(issue.Category)}\",{issue.Severity},{issue.Line},{issue.Column},\"{EscapeCsv(issue.Message)}\",\"{EscapeCsv(issue.Recommendation)}\"");
                     }
                 }
             }
@@ -140,6 +151,17 @@ public static class OutputFormatters
                                     name = "PotentialNullReference", 
                                     shortDescription = new { text = "Potential Null Reference" },
                                     fullDescription = new { text = "The code may contain potential null reference exceptions." },
+                                    messageStrings = new
+                                    {
+                                        @default = new { text = "{0}" }
+                                    }
+                                },
+                                new
+                                {
+                                    id = "BV0004",
+                                    name = "PerformanceIssue",
+                                    shortDescription = new { text = "Performance Issue" },
+                                    fullDescription = new { text = "The code contains patterns that may impact performance." },
                                     messageStrings = new
                                     {
                                         @default = new { text = "{0}" }
@@ -234,6 +256,45 @@ public static class OutputFormatters
                             ruleId = "BV0003",
                             level = "warning",
                             message = new { text = issue.Message },
+                            locations = new[]
+                            {
+                                new
+                                {
+                                    physicalLocation = new
+                                    {
+                                        artifactLocation = new { uri = analysis.FilePath },
+                                        region = new
+                                        {
+                                            startLine = issue.Line,
+                                            startColumn = issue.Column
+                                        }
+                                    }
+                                }
+                            }
+                        };
+                    }
+
+                    // Performance issues
+                    var allPerformanceIssues = analysis.PerformanceAnalysis.LinqPerformanceIssues
+                        .Concat(analysis.PerformanceAnalysis.AllocationIssues)
+                        .Concat(analysis.PerformanceAnalysis.AsyncPerformanceIssues)
+                        .Concat(analysis.PerformanceAnalysis.StringPerformanceIssues);
+
+                    foreach (var issue in allPerformanceIssues)
+                    {
+                        var level = issue.Severity switch
+                        {
+                            PerformanceSeverity.High => "error",
+                            PerformanceSeverity.Medium => "warning",
+                            PerformanceSeverity.Low => "note",
+                            _ => "note"
+                        };
+
+                        yield return new
+                        {
+                            ruleId = "BV0004",
+                            level = level,
+                            message = new { text = $"{issue.Message}. {issue.Recommendation}" },
                             locations = new[]
                             {
                                 new

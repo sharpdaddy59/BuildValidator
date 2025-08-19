@@ -499,6 +499,81 @@ Enforces code organization and file structure standards:
 - **ORG002**: Constructors should come before other methods
 - **ORG003**: Public members should come before private members
 
+#### Semantic Analysis Rules (SEM001-SEM030)
+
+Controls deep code analysis using compiler semantic information:
+
+```json
+{
+  "enableSemanticRules": true,
+  "enableUnusedImportDetection": true,
+  "enableNullReferenceDetection": true,
+  "enableTypeAnalysis": true,
+  "enableCodeFlowAnalysis": true,
+  "semanticSeverityOverrides": {
+    "SEM001": "Warning",  // Unused using statements
+    "SEM010": "Warning",  // Null reference on method calls
+    "SEM011": "Warning",  // Null reference on property access
+    "SEM020": "Info",     // Unreachable code after return
+    "SEM030": "Info"      // Unnecessary type casts
+  }
+}
+```
+
+**Unused Imports Rules (SEM001-SEM003)**:
+- **SEM001**: Unused using statements that can be removed
+
+**Null Safety Rules (SEM010-SEM015)**:
+- **SEM010**: Potential null reference exceptions on method calls
+- **SEM011**: Potential null reference exceptions on property/field access
+- **SEM012**: *[Future]* Potential null reference on array/collection access
+- **SEM013**: *[Future]* Nullable types used without null checks
+- **SEM014**: *[Future]* Non-nullable reference types assigned null
+- **SEM015**: *[Future]* Possible null return from non-nullable method
+
+**Code Flow Rules (SEM020-SEM025)**:
+- **SEM020**: Unreachable code after return/throw statements
+- **SEM021**: *[Future]* Dead code (unused variables/methods)
+- **SEM022**: *[Future]* Infinite loops detected
+- **SEM023**: *[Future]* Missing break statements in switch cases
+- **SEM024**: *[Future]* Unused method parameters
+- **SEM025**: *[Future]* Variables assigned but never read
+
+**Type Safety Rules (SEM030-SEM035)**:
+- **SEM030**: Unnecessary type casts that can be removed
+- **SEM031**: *[Future]* Boxing/unboxing performance issues
+- **SEM032**: *[Future]* Unsafe type conversions
+- **SEM033**: *[Future]* Generic type constraint violations
+- **SEM034**: *[Future]* Interface segregation violations
+- **SEM035**: *[Future]* Covariance/contravariance issues
+
+**Example violations**:
+```csharp
+using System.Collections.Generic;  // SEM001 if not used
+using System.Linq;                 // SEM001 if not used
+
+public class UserService 
+{
+    public User GetUser(int id) 
+    {
+        var service = GetService();
+        return service.FindUser(id);    // SEM010 if service could be null
+    }
+    
+    public void ProcessUser(User user)
+    {
+        var name = user.Name;           // SEM011 if user could be null
+        return;
+        Console.WriteLine("Done");      // SEM020 - unreachable code
+    }
+    
+    public string Convert(object value)
+    {
+        return (string)value;           // SEM030 if value is already string
+    }
+}
+```
+
 ### Configuration Presets
 
 #### Enterprise Configuration
@@ -511,6 +586,11 @@ Strict rules for enterprise development:
   "enableEncapsulationRules": true,
   "enableAccessibilityRules": true,
   "enableOrganizationRules": true,
+  "enableSemanticRules": true,
+  "enableUnusedImportDetection": true,
+  "enableNullReferenceDetection": true,
+  "enableTypeAnalysis": true,
+  "enableCodeFlowAnalysis": true,
   "treatWarningsAsErrors": true,
   "minimumSeverity": "Info",
   "severityOverrides": {
@@ -519,6 +599,13 @@ Strict rules for enterprise development:
     "ENC001": "Error",
     "USG001": "Warning",
     "ORG003": "Warning"
+  },
+  "semanticSeverityOverrides": {
+    "SEM001": "Error",    // Unused imports fail build
+    "SEM010": "Error",    // Null references fail build
+    "SEM011": "Error",    // Property null access fails build
+    "SEM020": "Warning",  // Dead code as warning
+    "SEM030": "Warning"   // Type safety as warning
   }
 }
 ```
@@ -535,10 +622,18 @@ Minimal rules for rapid development:
   "enableEncapsulationRules": true,
   "enableAccessibilityRules": false,
   "enableOrganizationRules": false,
+  "enableSemanticRules": true,
+  "enableUnusedImportDetection": true,
+  "enableNullReferenceDetection": false,
+  "enableTypeAnalysis": false,
+  "enableCodeFlowAnalysis": false,
   "minimumSeverity": "Warning",
   "disabledRules": [
     "USG001", "USG002", "ORG001", "ORG002", "ORG003"
-  ]
+  ],
+  "semanticSeverityOverrides": {
+    "SEM001": "Warning"   // Only unused imports as warnings
+  }
 }
 ```
 
@@ -554,12 +649,22 @@ Emphasis on API documentation quality:
   "enableEncapsulationRules": true,
   "enableAccessibilityRules": true,
   "enableOrganizationRules": false,
+  "enableSemanticRules": true,
+  "enableUnusedImportDetection": true,
+  "enableNullReferenceDetection": true,
+  "enableTypeAnalysis": false,
+  "enableCodeFlowAnalysis": false,
   "severityOverrides": {
     "DOC001": "Error",
     "DOC002": "Error",
     "DOC003": "Warning",
     "DOC004": "Warning",
     "DOC005": "Error"
+  },
+  "semanticSeverityOverrides": {
+    "SEM001": "Warning",  // Clean imports for better docs
+    "SEM010": "Warning",  // Null safety for API reliability
+    "SEM011": "Warning"   // Property safety for API reliability
   }
 }
 ```
@@ -573,7 +678,9 @@ Emphasis on API documentation quality:
 **Explicit rule selection**:
 ```json
 {
-  "enabledRules": ["DOC001", "DOC002", "ENC001"],  // Only these rules
+  "enabledRules": ["DOC001", "DOC002", "ENC001"],  // Only these style rules
+  "enableSemanticRules": true,
+  "enableNullReferenceDetection": false,  // Disable entire semantic category
   "disabledRules": []  // Ignored when enabledRules is specified
 }
 ```
@@ -582,7 +689,20 @@ Emphasis on API documentation quality:
 ```json
 {
   "enableDocumentationRules": true,
-  "disabledRules": ["DOC003", "DOC004"]  // Enable category but disable specific rules
+  "enableSemanticRules": true,
+  "disabledRules": ["DOC003", "DOC004", "SEM010", "SEM011"]  // Disable specific rules
+}
+```
+
+**Semantic-specific filtering**:
+```json
+{
+  "enableSemanticRules": true,
+  "enableUnusedImportDetection": true,   // Enable unused imports
+  "enableNullReferenceDetection": false, // Disable null reference detection
+  "enableTypeAnalysis": false,           // Disable type analysis
+  "enableCodeFlowAnalysis": true,        // Enable code flow analysis
+  "disabledRules": ["SEM020"]            // But disable specific flow rule
 }
 ```
 
@@ -596,8 +716,29 @@ Emphasis on API documentation quality:
     "USG001": "Info",       // Reduce using order to informational
     "ENC001": "Warning"     // Public fields as warnings not errors
   },
+  "semanticSeverityOverrides": {
+    "SEM001": "Error",      // Unused imports fail builds
+    "SEM010": "Info",       // Null references as guidance only
+    "SEM011": "Warning",    // Property access as warnings
+    "SEM020": "Error",      // Dead code fails builds
+    "SEM030": "Info"        // Type casts as informational
+  },
   "minimumSeverity": "Warning",  // Filter out Info-level issues
   "treatWarningsAsErrors": true  // Fail builds on any warnings
+}
+```
+
+**Semantic vs Style severity separation**:
+```json
+{
+  "treatWarningsAsErrors": false,
+  "severityOverrides": {
+    "DOC001": "Warning"     // Style rules as warnings
+  },
+  "semanticSeverityOverrides": {
+    "SEM010": "Error",      // But semantic issues as errors
+    "SEM011": "Error"
+  }
 }
 ```
 
@@ -734,12 +875,20 @@ dotnet run -- ./src --analysis --verbosity detailed
   "enableEncapsulationRules": true,
   "enableAccessibilityRules": true,
   "enableOrganizationRules": true,
+  "enableSemanticRules": true,
+  "enableNullReferenceDetection": true,
+  "enableUnusedImportDetection": true,
   "treatWarningsAsErrors": true,
   "minimumSeverity": "Info",
   "severityOverrides": {
     "DOC001": "Error",
     "DOC002": "Error",
     "ENC001": "Error"
+  },
+  "semanticSeverityOverrides": {
+    "SEM001": "Error",    // Unused imports fail builds
+    "SEM010": "Error",    // Null references fail builds
+    "SEM011": "Error"     // Property access safety required
   }
 }
 ```
@@ -763,6 +912,8 @@ dotnet run -- ./src --analysis --complexity-threshold 8 --maintainability-thresh
 - Zero compilation errors/warnings
 - All public APIs properly documented
 - No encapsulation violations
+- No unused imports or potential null references
+- Clean semantic analysis across all code
 
 ### Scenario 2: Legacy Codebase Assessment
 
@@ -963,6 +1114,85 @@ cd ./Prototype && dotnet run --project ../BuildValidator -- . --analysis
 3. Place appropriate configuration in each project root
 4. Document standards for each project type
 5. Review and evolve rules based on project maturity
+
+### Scenario 7: Configuring Semantic Analysis for Different Code Areas
+
+**Situation**: Managing semantic analysis rules across legacy and new code areas
+
+**Legacy Code Area** (`/src/Legacy/buildvalidator.json`):
+```json
+{
+  "enableSemanticRules": true,
+  "enableUnusedImportDetection": true,
+  "enableNullReferenceDetection": false,  // Too noisy in legacy code
+  "enableTypeAnalysis": false,
+  "enableCodeFlowAnalysis": false,
+  "semanticSeverityOverrides": {
+    "SEM001": "Info"      // Unused imports as guidance only
+  },
+  "minimumSeverity": "Warning"
+}
+```
+
+**New API Code** (`/src/Api/buildvalidator.json`):
+```json
+{
+  "enableSemanticRules": true,
+  "enableUnusedImportDetection": true,
+  "enableNullReferenceDetection": true,
+  "enableTypeAnalysis": true,
+  "enableCodeFlowAnalysis": true,
+  "treatWarningsAsErrors": true,
+  "semanticSeverityOverrides": {
+    "SEM001": "Error",    // Clean imports required
+    "SEM010": "Error",    // Null safety critical for APIs
+    "SEM011": "Error",    // Property safety critical
+    "SEM020": "Warning",  // Dead code as warnings
+    "SEM030": "Warning"   // Type efficiency important
+  }
+}
+```
+
+**Internal Tools** (`/src/Tools/buildvalidator.json`):
+```json
+{
+  "enableSemanticRules": true,
+  "enableUnusedImportDetection": true,
+  "enableNullReferenceDetection": true,
+  "enableTypeAnalysis": false,       // Skip for rapid development
+  "enableCodeFlowAnalysis": false,
+  "semanticSeverityOverrides": {
+    "SEM001": "Warning",  // Clean imports encouraged
+    "SEM010": "Info",     // Null refs as guidance
+    "SEM011": "Info"      // Property access as guidance
+  },
+  "minimumSeverity": "Warning"
+}
+```
+
+**Usage workflow**:
+```bash
+# Legacy assessment - minimal semantic noise
+cd ./src/Legacy && dotnet run --project ../../BuildValidator -- . --analysis
+
+# API validation - strict semantic requirements  
+cd ./src/Api && dotnet run --project ../../BuildValidator -- . --analysis
+
+# Tools development - balanced semantic guidance
+cd ./src/Tools && dotnet run --project ../../BuildValidator -- . --analysis
+```
+
+**Benefits**:
+- **Context-appropriate semantic analysis**: Each area gets suitable semantic rules
+- **Gradual improvement**: Legacy code can adopt semantic rules incrementally  
+- **Performance optimization**: Skip expensive analysis where not needed
+- **Developer productivity**: Semantic rules support rather than hinder development
+
+**Migration strategy**:
+1. Start with legacy config for all areas to assess current state
+2. Gradually enable semantic rules in new development areas
+3. Increase semantic rule strictness as code quality improves
+4. Eventually standardize on enterprise-level semantic analysis
 
 ## Command Reference
 

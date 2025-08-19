@@ -159,14 +159,14 @@ public static class CommandLineParser
                 if (i + 1 < args.Length)
                 {
                     string format = args[i + 1];
-                    if (new[] { "console", "json", "markdown" }.Contains(format.ToLowerInvariant()))
+                    if (new[] { "console", "json", "markdown", "md", "csv", "sarif" }.Contains(format.ToLowerInvariant()))
                     {
                         options = options with { OutputFormat = format };
                         i++;
                     }
                     else
                     {
-                        Console.Error.WriteLine("Error: Format must be one of: console, json, markdown");
+                        Console.Error.WriteLine("Error: Format must be one of: console, json, markdown, md, csv, sarif");
                         Environment.Exit(1);
                     }
                 }
@@ -215,6 +215,30 @@ public static class CommandLineParser
             Environment.Exit(1);
         }
 
+        // Auto-detect format from file extension if output file is specified
+        if (!string.IsNullOrEmpty(options.OutputFile) && options.OutputFormat == "console")
+        {
+            var extension = Path.GetExtension(options.OutputFile).ToLowerInvariant();
+            var detectedFormat = extension switch
+            {
+                ".csv" => "csv",
+                ".sarif" => "sarif", 
+                ".json" => "json",
+                ".md" => "markdown",
+                ".markdown" => "markdown",
+                _ => "console"
+            };
+            
+            if (detectedFormat != "console")
+            {
+                options = options with { OutputFormat = detectedFormat };
+                if (options.Verbosity != "minimal")
+                {
+                    Console.WriteLine($"Auto-detected format: {detectedFormat} from file extension");
+                }
+            }
+        }
+
         return options;
     }
 
@@ -242,7 +266,7 @@ public static class CommandLineParser
         Console.WriteLine("  --maintainability-threshold <n>  Flag files with maintainability index < n (default: 20)");
         Console.WriteLine();
         Console.WriteLine("Output Options:");
-        Console.WriteLine("  --format <format>   Output format: console, json, markdown (default: console)");
+        Console.WriteLine("  --format <format>   Output format: console, csv, sarif, json, markdown/md (default: console)");
         Console.WriteLine("  --output <file>     Save results to file (format auto-detected from extension)");
         Console.WriteLine("  --help, -h          Show this help message");
         Console.WriteLine();
@@ -251,6 +275,7 @@ public static class CommandLineParser
         Console.WriteLine("  BuildValidator ./src --config Release --parallel 4");
         Console.WriteLine("  BuildValidator ./src --analysis --verbosity detailed");
         Console.WriteLine("  BuildValidator ./src --metrics-only --complexity-threshold 15");
-        Console.WriteLine("  BuildValidator ./src --analysis --format json --output results.json");
+        Console.WriteLine("  BuildValidator ./src --analysis --format csv --output results.csv");
+        Console.WriteLine("  BuildValidator ./src --analysis --format sarif --output results.sarif");
     }
 }

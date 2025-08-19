@@ -49,8 +49,8 @@ public static class BuildValidatorApp
             var buildEngine = new BuildEngine(options);
             var results = await buildEngine.CompileProjectsAsync(projects);
 
-            // Display results
-            BuildResultFormatter.DisplayResults(results, options);
+            // Display or export results
+            await OutputFormatters.WriteResultsAsync(results, options);
 
             // Return exit code based on results
             var hasFailures = results.Any(r => r.Status == BuildStatus.Failed);

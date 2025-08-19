@@ -8,8 +8,8 @@ namespace BuildValidator;
 /// </summary>
 public static class StyleConfigurationLoader
 {
-    private const string DefaultConfigFileName = ".buildvalidator.json";
-    private const string LegacyConfigFileName = "buildvalidator.json";
+    private const string DefaultConfigFileName = "buildvalidator.json";
+    private const string LegacyConfigFileName = ".buildvalidator.json";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -130,12 +130,12 @@ public static class StyleConfigurationLoader
 
         while (directory != null)
         {
-            // Check for .buildvalidator.json (preferred)
+            // Check for buildvalidator.json (preferred)
             var configPath = Path.Combine(directory.FullName, DefaultConfigFileName);
             if (File.Exists(configPath))
                 return configPath;
 
-            // Check for legacy buildvalidator.json
+            // Check for legacy .buildvalidator.json
             var legacyConfigPath = Path.Combine(directory.FullName, LegacyConfigFileName);
             if (File.Exists(legacyConfigPath))
                 return legacyConfigPath;

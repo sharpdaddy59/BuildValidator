@@ -9,6 +9,7 @@ A comprehensive guide to using BuildValidator for C# project validation and code
 - [Understanding Code Quality Metrics](#understanding-code-quality-metrics)
 - [Analysis Modes](#analysis-modes)
 - [Output Formats](#output-formats)
+- [Configurable Rules](#configurable-rules)
 - [Real-World Scenarios](#real-world-scenarios)
 - [Command Reference](#command-reference)
 - [Troubleshooting](#troubleshooting)
@@ -339,27 +340,429 @@ dotnet run -- ./src --analysis --format markdown --output results.md
 - Team wikis and documentation
 - Formatted reports for sharing
 
+## Configurable Rules
+
+BuildValidator allows teams to customize style validation rules through configuration files, enabling everything from strict enterprise standards to relaxed development environments.
+
+### Configuration File Setup
+
+Create a `buildvalidator.json` file in your project root to customize rule behavior:
+
+```json
+{
+  "enableDocumentationRules": true,
+  "enableEncapsulationRules": true,
+  "enableAccessibilityRules": true,
+  "enableOrganizationRules": true,
+  "disabledRules": [
+    "USG002",
+    "ORG003"
+  ],
+  "severityOverrides": {
+    "DOC001": "Error",
+    "DOC002": "Error", 
+    "ENC001": "Error"
+  },
+  "minimumSeverity": "Info",
+  "treatWarningsAsErrors": false,
+  "excludePatterns": [
+    "**/bin/**",
+    "**/obj/**",
+    "**/Properties/**",
+    "**/*.Designer.cs",
+    "**/*.g.cs",
+    "**/*.generated.cs"
+  ],
+  "analyzeGeneratedCode": false
+}
+```
+
+### Configuration Discovery
+
+BuildValidator automatically discovers configuration files by searching up the directory tree:
+
+1. **Primary**: `buildvalidator.json` (preferred)
+2. **Legacy**: `.buildvalidator.json` (backwards compatibility)
+
+**Discovery behavior**:
+- Starts from project directory
+- Walks up parent directories until configuration found
+- Uses default settings if no configuration file found
+- Project-specific configs override parent directory configs
+
+### Rule Categories
+
+#### Documentation Rules (DOC001-DOC005)
+
+Controls XML documentation requirements for public APIs:
+
+```json
+{
+  "enableDocumentationRules": true,
+  "severityOverrides": {
+    "DOC001": "Error",    // Public classes must have documentation
+    "DOC002": "Error",    // Public methods must have documentation  
+    "DOC003": "Warning",  // Method parameters should be documented
+    "DOC004": "Warning",  // Return values should be documented
+    "DOC005": "Error"     // Public properties must have documentation
+  }
+}
+```
+
+**Rules explained**:
+- **DOC001**: Public classes lacking XML documentation
+- **DOC002**: Public methods lacking XML documentation  
+- **DOC003**: Method parameters not documented with `<param>` tags
+- **DOC004**: Return values not documented with `<returns>` tags
+- **DOC005**: Public properties lacking XML documentation
+
+**Example violations**:
+```csharp
+// DOC001 violation - missing class documentation
+public class UserService 
+{
+    // DOC002 violation - missing method documentation
+    public User GetUser(int id) { ... }
+    
+    // DOC005 violation - missing property documentation  
+    public string ApiKey { get; set; }
+}
+```
+
+#### Encapsulation Rules (ENC001-ENC002)
+
+Enforces proper encapsulation and data hiding:
+
+```json
+{
+  "enableEncapsulationRules": true,
+  "severityOverrides": {
+    "ENC001": "Error",    // No public fields allowed
+    "ENC002": "Warning"   // Protected fields indicate design issues
+  }
+}
+```
+
+**Rules explained**:
+- **ENC001**: Public fields violate encapsulation (use properties instead)
+- **ENC002**: Protected fields may indicate inheritance design issues
+
+**Example violations**:
+```csharp
+public class Account
+{
+    public decimal Balance;        // ENC001 - should be property
+    protected string AccountId;   // ENC002 - consider private + protected property
+}
+```
+
+#### Accessibility Rules (ACC001-ACC002)
+
+Validates constructor and class accessibility patterns:
+
+```json
+{
+  "enableAccessibilityRules": true,
+  "disabledRules": ["ACC002"]  // Allow utility classes without static modifier
+}
+```
+
+**Rules explained**:
+- **ACC001**: Public classes should have explicit constructors when needed
+- **ACC002**: Utility classes with private constructors should be static
+
+#### Organization Rules (USG001-USG003, FIL001-FIL002, ORG001-ORG003)
+
+Enforces code organization and file structure standards:
+
+```json
+{
+  "enableOrganizationRules": true,
+  "disabledRules": [
+    "USG002",  // Skip blank line requirements between using groups
+    "FIL002"   // Allow multiple classes per file
+  ]
+}
+```
+
+**Using Statement Rules (USG001-USG003)**:
+- **USG001**: Using statements should be ordered (System → Microsoft → Third-party → Project)
+- **USG002**: Blank lines should separate using statement groups
+- **USG003**: No duplicate using statements
+
+**File Organization Rules (FIL001-FIL002)**:
+- **FIL001**: File name should match primary public class name
+- **FIL002**: Avoid multiple unrelated public classes in single file
+
+**Member Organization Rules (ORG001-ORG003)**:
+- **ORG001**: Fields should come before methods
+- **ORG002**: Constructors should come before other methods
+- **ORG003**: Public members should come before private members
+
+### Configuration Presets
+
+#### Enterprise Configuration
+
+Strict rules for enterprise development:
+
+```json
+{
+  "enableDocumentationRules": true,
+  "enableEncapsulationRules": true,
+  "enableAccessibilityRules": true,
+  "enableOrganizationRules": true,
+  "treatWarningsAsErrors": true,
+  "minimumSeverity": "Info",
+  "severityOverrides": {
+    "DOC001": "Error",
+    "DOC002": "Error",
+    "ENC001": "Error",
+    "USG001": "Warning",
+    "ORG003": "Warning"
+  }
+}
+```
+
+**Use case**: Mission-critical applications, public APIs, large teams
+
+#### Relaxed Configuration
+
+Minimal rules for rapid development:
+
+```json
+{
+  "enableDocumentationRules": false,
+  "enableEncapsulationRules": true,
+  "enableAccessibilityRules": false,
+  "enableOrganizationRules": false,
+  "minimumSeverity": "Warning",
+  "disabledRules": [
+    "USG001", "USG002", "ORG001", "ORG002", "ORG003"
+  ]
+}
+```
+
+**Use case**: Prototyping, internal tools, small teams
+
+#### Documentation-Focused Configuration
+
+Emphasis on API documentation quality:
+
+```json
+{
+  "enableDocumentationRules": true,
+  "enableEncapsulationRules": true,
+  "enableAccessibilityRules": true,
+  "enableOrganizationRules": false,
+  "severityOverrides": {
+    "DOC001": "Error",
+    "DOC002": "Error",
+    "DOC003": "Warning",
+    "DOC004": "Warning",
+    "DOC005": "Error"
+  }
+}
+```
+
+**Use case**: Libraries, SDKs, public-facing APIs
+
+### Advanced Configuration Options
+
+#### Rule Filtering
+
+**Explicit rule selection**:
+```json
+{
+  "enabledRules": ["DOC001", "DOC002", "ENC001"],  // Only these rules
+  "disabledRules": []  // Ignored when enabledRules is specified
+}
+```
+
+**Rule exclusion**:
+```json
+{
+  "enableDocumentationRules": true,
+  "disabledRules": ["DOC003", "DOC004"]  // Enable category but disable specific rules
+}
+```
+
+#### Severity Management
+
+**Custom severity levels**:
+```json
+{
+  "severityOverrides": {
+    "DOC001": "Error",      // Make documentation violations fail builds
+    "USG001": "Info",       // Reduce using order to informational
+    "ENC001": "Warning"     // Public fields as warnings not errors
+  },
+  "minimumSeverity": "Warning",  // Filter out Info-level issues
+  "treatWarningsAsErrors": true  // Fail builds on any warnings
+}
+```
+
+#### File Exclusions
+
+**Pattern-based exclusions**:
+```json
+{
+  "excludePatterns": [
+    "**/bin/**",           // Build outputs
+    "**/obj/**",           // Compiler artifacts
+    "**/Properties/**",    // Auto-generated properties
+    "**/*.Designer.cs",    // WinForms/WPF designers
+    "**/*.g.cs",          // Generated files
+    "**/Migrations/**",    // Entity Framework migrations
+    "**/wwwroot/**"        // Web static files
+  ],
+  "analyzeGeneratedCode": false  // Skip all generated code patterns
+}
+```
+
+### Configuration Validation
+
+BuildValidator validates configuration files and reports errors:
+
+```bash
+# Configuration errors are reported during analysis
+dotnet run -- ./src --analysis --verbosity detailed
+
+# Example error output:
+# Warning: Invalid configuration in buildvalidator.json:
+# - Rules cannot be both enabled and disabled: DOC001
+# - Invalid severity 'Critical' for rule 'DOC002' 
+```
+
+**Common validation errors**:
+- Conflicting enabled/disabled rules
+- Invalid severity values
+- Empty rule IDs or parameters
+- Malformed file exclusion patterns
+
+### Team Workflow Integration
+
+#### Development Workflow
+
+```bash
+# Local development with team standards
+dotnet run -- ./src --analysis
+
+# Customized for code review
+dotnet run -- ./feature-branch --analysis --format markdown --output review.md
+```
+
+#### CI/CD Integration
+
+```yaml
+# Azure DevOps with custom rules
+- script: dotnet run --project BuildValidator -- $(Build.SourcesDirectory) --analysis --format sarif --output quality-results.sarif
+  displayName: 'Code Quality Analysis'
+  
+# Fail build if configuration sets treatWarningsAsErrors: true
+- script: exit 1
+  condition: and(failed(), contains(variables['Agent.JobStatus'], 'Failed'))
+  displayName: 'Quality Gate Failed'
+```
+
+#### Team Standards Evolution
+
+**Gradual improvement approach**:
+
+1. **Assessment phase**: Start with relaxed configuration
+```json
+{ "minimumSeverity": "Error", "enableOrganizationRules": false }
+```
+
+2. **Improvement phase**: Gradually increase standards
+```json
+{ "minimumSeverity": "Warning", "enableOrganizationRules": true }
+```
+
+3. **Maintenance phase**: Strict enforcement for new code
+```json
+{ "minimumSeverity": "Info", "treatWarningsAsErrors": true }
+```
+
+### Configuration Best Practices
+
+1. **Start conservative**: Begin with relaxed rules and tighten gradually
+2. **Team agreement**: Ensure all team members agree on rule choices
+3. **Project context**: Adjust rules based on project type (library vs application)
+4. **Legacy accommodation**: Use separate configs for legacy vs new code
+5. **Regular review**: Periodically review and update rules as team matures
+
+### Troubleshooting Configuration
+
+#### Configuration Not Loading
+
+```bash
+# Check if configuration file is found
+dotnet run -- ./src --analysis --verbosity detailed
+# Look for: "Loading configuration from: /path/to/buildvalidator.json"
+```
+
+#### Rules Not Working as Expected
+
+```bash
+# Verify rule IDs and syntax
+dotnet run -- ./src --analysis --verbosity detailed
+# Check for configuration validation warnings
+```
+
+#### Performance Issues with Many Rules
+
+```json
+{
+  "minimumSeverity": "Warning",  // Filter out low-priority issues
+  "excludePatterns": [
+    "**/Generated/**",          // Skip generated code
+    "**/ThirdParty/**"         // Skip vendor code
+  ]
+}
+```
+
 ## Real-World Scenarios
 
 ### Scenario 1: New Project Quality Gates
 
 **Situation**: Establishing quality standards for a new project
 
+**Configuration setup**:
+```json
+{
+  "enableDocumentationRules": true,
+  "enableEncapsulationRules": true,
+  "enableAccessibilityRules": true,
+  "enableOrganizationRules": true,
+  "treatWarningsAsErrors": true,
+  "minimumSeverity": "Info",
+  "severityOverrides": {
+    "DOC001": "Error",
+    "DOC002": "Error",
+    "ENC001": "Error"
+  }
+}
+```
+
+**Usage**:
 ```bash
 # Set strict thresholds for new code
 dotnet run -- ./src --analysis --complexity-threshold 8 --maintainability-threshold 70 --output quality-gate.csv
 ```
 
 **Workflow**:
-1. Run analysis on every pull request
-2. Reject PRs that exceed thresholds
-3. Use CSV output for trend tracking
-4. Adjust thresholds based on team capability
+1. Create team-agreed buildvalidator.json configuration
+2. Run analysis on every pull request
+3. Reject PRs that exceed thresholds or violate style rules
+4. Use CSV output for trend tracking
+5. Adjust thresholds and rules based on team capability
 
 **Success metrics**:
 - No methods with complexity > 8
 - All files maintain maintainability index > 70
 - Zero compilation errors/warnings
+- All public APIs properly documented
+- No encapsulation violations
 
 ### Scenario 2: Legacy Codebase Assessment
 
@@ -486,6 +889,80 @@ dotnet run -- ./src --analysis --format csv --output "weekly-quality-$(date +%Y-
 2. CSV export for Excel dashboard
 3. Track trends and improvements
 4. Identify teams/projects needing support
+
+### Scenario 6: Customizing Rules for Different Project Types
+
+**Situation**: Managing multiple projects with different quality requirements
+
+**Library Project Configuration** (`buildvalidator.json`):
+```json
+{
+  "enableDocumentationRules": true,
+  "enableEncapsulationRules": true,
+  "enableAccessibilityRules": true,
+  "enableOrganizationRules": false,
+  "treatWarningsAsErrors": true,
+  "severityOverrides": {
+    "DOC001": "Error",
+    "DOC002": "Error",
+    "DOC005": "Error",
+    "ENC001": "Error"
+  },
+  "minimumSeverity": "Warning"
+}
+```
+
+**Internal Tool Configuration** (`buildvalidator.json`):
+```json
+{
+  "enableDocumentationRules": false,
+  "enableEncapsulationRules": true,
+  "enableAccessibilityRules": false,
+  "enableOrganizationRules": false,
+  "minimumSeverity": "Warning",
+  "disabledRules": ["USG001", "USG002"],
+  "excludePatterns": [
+    "**/bin/**", "**/obj/**", "**/Temp/**"
+  ]
+}
+```
+
+**Prototype Project Configuration** (`buildvalidator.json`):
+```json
+{
+  "enableDocumentationRules": false,
+  "enableEncapsulationRules": false,
+  "enableAccessibilityRules": false,
+  "enableOrganizationRules": false,
+  "minimumSeverity": "Error",
+  "enabledRules": []
+}
+```
+
+**Usage workflow**:
+```bash
+# Library - strict documentation and encapsulation
+cd ./MyLibrary && dotnet run --project ../BuildValidator -- . --analysis
+
+# Internal tool - focus on functionality over documentation
+cd ./InternalTool && dotnet run --project ../BuildValidator -- . --analysis
+
+# Prototype - only catch critical errors
+cd ./Prototype && dotnet run --project ../BuildValidator -- . --analysis
+```
+
+**Benefits**:
+- **Context-appropriate standards**: Each project type gets suitable rules
+- **Reduced noise**: Developers see relevant issues for their context
+- **Gradual improvement**: Can upgrade prototype → tool → library over time
+- **Team productivity**: Rules support rather than hinder development goals
+
+**Team workflow**:
+1. Establish project type categories and corresponding rule sets
+2. Create template configurations for each category
+3. Place appropriate configuration in each project root
+4. Document standards for each project type
+5. Review and evolve rules based on project maturity
 
 ## Command Reference
 

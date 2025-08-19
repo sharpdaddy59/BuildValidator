@@ -18,6 +18,7 @@ public class RoslynAnalyzer
         var codeMetrics = CalculateMetrics(root, semanticModel);
         var compilationIssues = GetCompilationIssues(compilation);
         var performanceAnalysis = PerformanceAnalyzer.AnalyzePerformance(root, semanticModel);
+        var styleAnalysis = StyleValidationAnalyzer.AnalyzeStyle(root, semanticModel, filePath);
 
         return new CodeAnalysisResult
         {
@@ -27,7 +28,8 @@ public class RoslynAnalyzer
             SemanticAnalysis = semanticAnalysis,
             CodeMetrics = codeMetrics,
             CompilationIssues = compilationIssues,
-            PerformanceAnalysis = performanceAnalysis
+            PerformanceAnalysis = performanceAnalysis,
+            StyleAnalysis = styleAnalysis
         };
     }
 

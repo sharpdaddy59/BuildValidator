@@ -11,6 +11,7 @@ public record CodeAnalysisResult
     public required CodeMetrics CodeMetrics { get; init; }
     public required CompilationIssue[] CompilationIssues { get; init; }
     public required PerformanceAnalysis PerformanceAnalysis { get; init; }
+    public required StyleAnalysis StyleAnalysis { get; init; }
 }
 
 public record SyntaxAnalysis

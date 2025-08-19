@@ -173,6 +173,9 @@ public static class BuildResultFormatter
         // Performance analysis
         DisplayPerformanceAnalysis(analysis.PerformanceAnalysis, options);
 
+        // Style analysis
+        DisplayStyleAnalysis(analysis.StyleAnalysis, options);
+
         // Syntax analysis details
         if (options.Verbosity == "detailed")
         {
@@ -263,6 +266,131 @@ public static class BuildResultFormatter
             PerformanceSeverity.Medium => ConsoleColor.Yellow,
             PerformanceSeverity.Low => ConsoleColor.Green,
             _ => ConsoleColor.Gray
+        };
+    }
+
+    private static void DisplayStyleAnalysis(StyleAnalysis style, CommandLineOptions options)
+    {
+        var allIssues = style.DocumentationIssues
+            .Concat(style.EncapsulationIssues)
+            .Concat(style.AccessibilityIssues)
+            .Concat(style.OrganizationIssues)
+            .ToArray();
+
+        if (!allIssues.Any()) return;
+
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine($"    🎨 Style: {allIssues.Length} issues ({GetStyleSummary(style.Metrics)})");
+        Console.ResetColor();
+
+        if (options.Verbosity == "detailed")
+        {
+            // Documentation Issues
+            if (style.DocumentationIssues.Any())
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"    🎨 Documentation Issues:");
+                Console.ResetColor();
+                
+                foreach (var issue in style.DocumentationIssues.OrderByDescending(i => i.Severity).Take(5))
+                {
+                    var severityIcon = GetStyleSeverityIcon(issue.Severity);
+                    Console.WriteLine($"      {severityIcon} Line {issue.Line}: {issue.Message}");
+                    if (options.Verbosity == "detailed" && !string.IsNullOrEmpty(issue.Recommendation))
+                    {
+                        Console.ForegroundColor = ConsoleColor.DarkGray;
+                        Console.WriteLine($"         💡 {issue.Recommendation}");
+                        Console.ResetColor();
+                    }
+                }
+            }
+
+            // Encapsulation Issues
+            if (style.EncapsulationIssues.Any())
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"    🎨 Encapsulation Issues:");
+                Console.ResetColor();
+                
+                foreach (var issue in style.EncapsulationIssues.OrderByDescending(i => i.Severity).Take(5))
+                {
+                    var severityIcon = GetStyleSeverityIcon(issue.Severity);
+                    Console.WriteLine($"      {severityIcon} Line {issue.Line}: {issue.Message}");
+                    if (options.Verbosity == "detailed" && !string.IsNullOrEmpty(issue.Recommendation))
+                    {
+                        Console.ForegroundColor = ConsoleColor.DarkGray;
+                        Console.WriteLine($"         💡 {issue.Recommendation}");
+                        Console.ResetColor();
+                    }
+                }
+            }
+
+            // Accessibility Issues
+            if (style.AccessibilityIssues.Any())
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"    🎨 Accessibility Issues:");
+                Console.ResetColor();
+                
+                foreach (var issue in style.AccessibilityIssues.OrderByDescending(i => i.Severity).Take(5))
+                {
+                    var severityIcon = GetStyleSeverityIcon(issue.Severity);
+                    Console.WriteLine($"      {severityIcon} Line {issue.Line}: {issue.Message}");
+                    if (options.Verbosity == "detailed" && !string.IsNullOrEmpty(issue.Recommendation))
+                    {
+                        Console.ForegroundColor = ConsoleColor.DarkGray;
+                        Console.WriteLine($"         💡 {issue.Recommendation}");
+                        Console.ResetColor();
+                    }
+                }
+            }
+
+            // Organization Issues
+            if (style.OrganizationIssues.Any())
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"    🎨 Organization Issues:");
+                Console.ResetColor();
+                
+                foreach (var issue in style.OrganizationIssues.OrderByDescending(i => i.Severity).Take(5))
+                {
+                    var severityIcon = GetStyleSeverityIcon(issue.Severity);
+                    Console.WriteLine($"      {severityIcon} Line {issue.Line}: {issue.Message}");
+                    if (options.Verbosity == "detailed" && !string.IsNullOrEmpty(issue.Recommendation))
+                    {
+                        Console.ForegroundColor = ConsoleColor.DarkGray;
+                        Console.WriteLine($"         💡 {issue.Recommendation}");
+                        Console.ResetColor();
+                    }
+                }
+            }
+        }
+    }
+
+    private static string GetStyleSummary(StyleMetrics metrics)
+    {
+        var parts = new List<string>();
+        
+        if (metrics.DocumentationViolations > 0)
+            parts.Add($"📝 {metrics.DocumentationViolations} docs");
+        if (metrics.EncapsulationViolations > 0)
+            parts.Add($"🔒 {metrics.EncapsulationViolations} encapsulation");
+        if (metrics.AccessibilityViolations > 0)
+            parts.Add($"♿ {metrics.AccessibilityViolations} accessibility");
+        if (metrics.OrganizationViolations > 0)
+            parts.Add($"📋 {metrics.OrganizationViolations} organization");
+            
+        return parts.Any() ? string.Join(", ", parts) : "✨ clean code";
+    }
+
+    private static string GetStyleSeverityIcon(StyleSeverity severity)
+    {
+        return severity switch
+        {
+            StyleSeverity.Error => "🔴",
+            StyleSeverity.Warning => "🟡",
+            StyleSeverity.Info => "🔵",
+            _ => "⚪"
         };
     }
 }

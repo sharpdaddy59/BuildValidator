@@ -225,16 +225,31 @@ public class BuildEngine
 
     public async Task<List<BuildResult>> CompileProjectsAsync(IEnumerable<string> projectPaths)
     {
-        var results = new List<BuildResult>();
-        
-        // For now, build sequentially (we'll add parallel support later)
-        foreach (var projectPath in projectPaths)
-        {
-            var result = await CompileProjectAsync(projectPath);
-            results.Add(result);
-        }
+        var paths = projectPaths.ToList();
 
-        return results;
+        // Build projects concurrently, throttled to the configured parallelism.
+        // Each CompileProjectAsync creates its own MSBuildWorkspace, so the builds
+        // are independent. Results are written by input index, so ordering is
+        // preserved regardless of which build finishes first.
+        using var throttle = new SemaphoreSlim(Math.Max(1, _options.ParallelCount));
+        var results = new BuildResult[paths.Count];
+
+        var tasks = paths.Select(async (path, index) =>
+        {
+            await throttle.WaitAsync();
+            try
+            {
+                results[index] = await CompileProjectAsync(path);
+            }
+            finally
+            {
+                throttle.Release();
+            }
+        }).ToList();
+
+        await Task.WhenAll(tasks);
+
+        return results.ToList();
     }
 
     private async Task<List<CodeAnalysisResult>> PerformCodeAnalysis(Microsoft.CodeAnalysis.Project project)

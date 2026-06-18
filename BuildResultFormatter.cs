@@ -4,10 +4,12 @@ namespace BuildValidator;
 
 public static class BuildResultFormatter
 {
-    public static void DisplayResults(IEnumerable<BuildResult> results, CommandLineOptions options)
+    public static void DisplayResults(IEnumerable<BuildResult> results, CommandLineOptions options, TimeSpan? wallClock = null)
     {
         var resultsList = results.ToList();
-        var totalDuration = TimeSpan.FromMilliseconds(resultsList.Sum(r => r.Duration.TotalMilliseconds));
+        // Prefer actual wall-clock time when available; with parallel builds the
+        // sum of per-project durations overstates the real elapsed time.
+        var totalDuration = wallClock ?? TimeSpan.FromMilliseconds(resultsList.Sum(r => r.Duration.TotalMilliseconds));
         var successCount = resultsList.Count(r => r.Status == BuildStatus.Success);
         var failureCount = resultsList.Count(r => r.Status == BuildStatus.Failed);
 

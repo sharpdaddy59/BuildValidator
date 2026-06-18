@@ -4,7 +4,7 @@ namespace BuildValidator;
 
 public static class OutputFormatters
 {
-    public static async Task WriteResultsAsync(IEnumerable<BuildResult> results, CommandLineOptions options)
+    public static async Task WriteResultsAsync(IEnumerable<BuildResult> results, CommandLineOptions options, TimeSpan? wallClock = null)
     {
         switch (options.OutputFormat.ToLowerInvariant())
         {
@@ -22,7 +22,7 @@ public static class OutputFormatters
                 await WriteMarkdownAsync(results, options);
                 break;
             default:
-                BuildResultFormatter.DisplayResults(results, options);
+                BuildResultFormatter.DisplayResults(results, options, wallClock);
                 break;
         }
     }

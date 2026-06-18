@@ -33,6 +33,7 @@ public static class BuildValidatorApp
 
             var buildEngine = new BuildEngine(options);
             List<BuildResult> results;
+            var buildTimer = System.Diagnostics.Stopwatch.StartNew();
 
             if (solutionFiles.Any())
             {
@@ -75,8 +76,10 @@ public static class BuildValidatorApp
                 return 1;
             }
 
+            buildTimer.Stop();
+
             // Display or export results
-            await OutputFormatters.WriteResultsAsync(results, options);
+            await OutputFormatters.WriteResultsAsync(results, options, buildTimer.Elapsed);
 
             // Return exit code based on results
             var hasFailures = results.Any(r => r.Status == BuildStatus.Failed);

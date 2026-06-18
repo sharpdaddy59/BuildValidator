@@ -51,8 +51,7 @@ public static class BuildValidatorApp
                 results = new List<BuildResult>();
                 foreach (var solutionPath in solutionFiles)
                 {
-                    var result = await buildEngine.CompileSolutionAsync(solutionPath);
-                    results.Add(result);
+                    results.AddRange(await buildEngine.CompileSolutionAsync(solutionPath));
                 }
             }
             else if (projectFiles.Any())

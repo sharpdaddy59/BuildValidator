@@ -46,7 +46,7 @@ dotnet run -- ./single-project --metrics-only
 ### Expected Output
 
 #### Solution Mode (Preferred)
-When BuildValidator finds solution files (`.sln` or `.slnx`), it uses solution mode for better dependency resolution. If both a `.sln` and a `.slnx` exist for the same solution, the `.slnx` is used:
+When BuildValidator finds solution files (`.sln` or `.slnx`), it uses solution mode for better dependency resolution. If both a `.sln` and a `.slnx` exist for the same solution, the `.slnx` is used. Each project in the solution is reported separately (as `<solution> / <project>`), so per-project pass/fail and diagnostics are preserved:
 
 ```
 Building & Analyzing C# Projects in: ./src
@@ -54,15 +54,15 @@ Building & Analyzing C# Projects in: ./src
 Found 1 solution(s) to build:
   MyApp.sln
 
-[1/1] MyApp ................................ ✓ (2.4s)
+[1/2] MyApp / MyApp.Core .................... ✓ (1.8s)
   📊 Code Analysis Results:
     UserService.cs: Complexity: 8, Maintainability: 72, Methods: 5
+[2/2] MyApp / MyApp.Api ..................... ✗ (1.1s)
+  Error CS0246: Type 'InvalidClass' not found (Controller.cs:12)
     DataRepository.cs: Complexity: 12, Maintainability: 45, Methods: 8
       ⚠️  High complexity (>10)
-    ⚡ Performance: 5 issues (🔴 0 high, 🟡 2 medium, 🟢 3 low)
 
-Results: 1 succeeded, 0 failed (2.4s total)
-Code Quality: 1 needs improvement
+Results: 1 succeeded, 1 failed (2.9s total)
 ```
 
 #### Individual Project Mode (Fallback)

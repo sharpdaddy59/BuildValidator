@@ -153,11 +153,10 @@ public class BuildEngine
         return result;
     }
 
-    public async Task<BuildResult> CompileSolutionAsync(string solutionPath)
+    public async Task<List<BuildResult>> CompileSolutionAsync(string solutionPath)
     {
-        var stopwatch = Stopwatch.StartNew();
         var solutionName = Path.GetFileNameWithoutExtension(solutionPath);
-        
+
         try
         {
             // Use MSBuildWorkspace to load the entire solution
@@ -168,57 +167,79 @@ public class BuildEngine
 
             // Load the solution
             var solution = await workspace.OpenSolutionAsync(solutionPath);
-            var allDiagnostics = new List<BuildDiagnostic>();
-            var allAnalysisResults = new List<CodeAnalysisResult>();
-            var hasErrors = false;
+            var results = new List<BuildResult>();
 
-            // Compile all projects in the solution
+            // One BuildResult per project so per-project pass/fail, diagnostics,
+            // and timing are preserved (rather than collapsed into the solution).
             foreach (var project in solution.Projects)
             {
+                var stopwatch = Stopwatch.StartNew();
+                var projectName = $"{solutionName} / {project.Name}";
+
                 var compilation = await project.GetCompilationAsync();
                 if (compilation == null)
                 {
-                    hasErrors = true;
+                    stopwatch.Stop();
+                    results.Add(new BuildResult
+                    {
+                        ProjectPath = project.FilePath ?? solutionPath,
+                        ProjectName = projectName,
+                        Status = BuildStatus.Failed,
+                        Duration = stopwatch.Elapsed,
+                        ErrorMessage = "Failed to create compilation"
+                    });
                     continue;
                 }
 
-                // Collect diagnostics from this project
                 var diagnostics = ConvertDiagnostics(compilation.GetDiagnostics());
-                allDiagnostics.AddRange(diagnostics);
-                hasErrors |= diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error);
+                var hasErrors = diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error);
 
-                // Perform code analysis if requested
+                List<CodeAnalysisResult>? analysisResults = null;
                 if (_options.EnableAnalysis || _options.IncludeMetrics || _options.MetricsOnly)
                 {
-                    var projectAnalysis = await PerformCodeAnalysis(project);
-                    allAnalysisResults.AddRange(projectAnalysis);
+                    analysisResults = await PerformCodeAnalysis(project);
                 }
+
+                stopwatch.Stop();
+
+                results.Add(new BuildResult
+                {
+                    ProjectPath = project.FilePath ?? solutionPath,
+                    ProjectName = projectName,
+                    Status = hasErrors ? BuildStatus.Failed : BuildStatus.Success,
+                    Duration = stopwatch.Elapsed,
+                    Diagnostics = diagnostics,
+                    AnalysisResults = analysisResults
+                });
             }
 
-            stopwatch.Stop();
-
-            var status = hasErrors ? BuildStatus.Failed : BuildStatus.Success;
-
-            return new BuildResult
+            // An empty solution still yields one result so the run reports something.
+            if (results.Count == 0)
             {
-                ProjectPath = solutionPath,
-                ProjectName = solutionName,
-                Status = status,
-                Duration = stopwatch.Elapsed,
-                Diagnostics = allDiagnostics,
-                AnalysisResults = allAnalysisResults.Any() ? allAnalysisResults : null
-            };
+                results.Add(new BuildResult
+                {
+                    ProjectPath = solutionPath,
+                    ProjectName = solutionName,
+                    Status = BuildStatus.Success,
+                    Duration = TimeSpan.Zero
+                });
+            }
+
+            return results;
         }
         catch (Exception ex)
         {
-            stopwatch.Stop();
-            return new BuildResult
+            // Solution-level failure (e.g. the solution couldn't be opened).
+            return new List<BuildResult>
             {
-                ProjectPath = solutionPath,
-                ProjectName = solutionName,
-                Status = BuildStatus.Failed,
-                Duration = stopwatch.Elapsed,
-                ErrorMessage = ex.Message
+                new BuildResult
+                {
+                    ProjectPath = solutionPath,
+                    ProjectName = solutionName,
+                    Status = BuildStatus.Failed,
+                    Duration = TimeSpan.Zero,
+                    ErrorMessage = ex.Message
+                }
             };
         }
     }

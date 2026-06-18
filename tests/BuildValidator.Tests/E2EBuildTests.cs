@@ -96,4 +96,19 @@ public class E2EBuildTests : IClassFixture<FixturesRestoreFixture>
         Assert.Contains("App.slnx", output);
         Assert.Contains("succeeded", output, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public async Task SolutionMode_ReportsEachProjectSeparately()
+    {
+        var (exit, output) = await RunValidator("MixedSolution", "--verbosity", "normal");
+
+        // The solution has one passing and one failing project, so the overall
+        // run fails but each project is reported under its own name.
+        Assert.NotEqual(0, exit);
+        Assert.Contains("Mixed / Good", output);
+        Assert.Contains("Mixed / Bad", output);
+        Assert.Contains("CS0246", output);
+        // Exactly one passed and one failed.
+        Assert.Contains("1 succeeded, 1 failed", output);
+    }
 }

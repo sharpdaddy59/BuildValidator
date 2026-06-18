@@ -1,0 +1,22 @@
+# Normalize line endings: store as LF in the repo, check out native per platform.
+* text=auto
+
+# C# / project sources — always LF in repo
+*.cs        text diff=csharp
+*.csproj    text
+*.vbproj    text
+*.sln       text eol=crlf
+*.json      text
+*.md        text
+*.gitattributes text
+*.gitignore text
+
+# Binary files — never modify
+*.png       binary
+*.jpg       binary
+*.gif       binary
+*.ico       binary
+*.dll       binary
+*.exe       binary
+*.pdb       binary
+*.snk       binary

@@ -105,6 +105,12 @@ public static class OutputFormatters
 
     private static async Task WriteSarifAsync(IEnumerable<BuildResult> results, CommandLineOptions options)
     {
+        // Paths are emitted relative to the analysis root so GitHub code scanning
+        // can map results to files in the repository for inline annotations.
+        var baseDir = string.IsNullOrEmpty(options.Directory)
+            ? Directory.GetCurrentDirectory()
+            : Path.GetFullPath(options.Directory);
+
         // SARIF 2.1.0 format implementation
         var sarif = new
         {
@@ -169,7 +175,7 @@ public static class OutputFormatters
                             }
                         }
                     },
-                    results = CreateSarifResults(results).ToArray()
+                    results = CreateSarifResults(results, baseDir).ToArray()
                 }
             }
         };
@@ -198,7 +204,7 @@ public static class OutputFormatters
         await WriteToFileAsync(json, options, "sarif");
     }
 
-    private static IEnumerable<object> CreateSarifResults(IEnumerable<BuildResult> results)
+    private static IEnumerable<object> CreateSarifResults(IEnumerable<BuildResult> results, string baseDir)
     {
         foreach (var result in results)
         {
@@ -218,7 +224,7 @@ public static class OutputFormatters
                             {
                                 artifactLocation = new
                                 {
-                                    uri = diagnostic.FilePath ?? result.ProjectPath
+                                    uri = ToRelativeUri(diagnostic.FilePath ?? result.ProjectPath, baseDir)
                                 },
                                 region = new
                                 {
@@ -250,7 +256,7 @@ public static class OutputFormatters
                                 {
                                     physicalLocation = new
                                     {
-                                        artifactLocation = new { uri = analysis.FilePath },
+                                        artifactLocation = new { uri = ToRelativeUri(analysis.FilePath, baseDir) },
                                         region = new
                                         {
                                             startLine = issue.Line,
@@ -276,7 +282,7 @@ public static class OutputFormatters
                                 {
                                     physicalLocation = new
                                     {
-                                        artifactLocation = new { uri = analysis.FilePath },
+                                        artifactLocation = new { uri = ToRelativeUri(analysis.FilePath, baseDir) },
                                         region = new
                                         {
                                             startLine = issue.Line,
@@ -315,7 +321,7 @@ public static class OutputFormatters
                                 {
                                     physicalLocation = new
                                     {
-                                        artifactLocation = new { uri = analysis.FilePath },
+                                        artifactLocation = new { uri = ToRelativeUri(analysis.FilePath, baseDir) },
                                         region = new
                                         {
                                             startLine = issue.Line,
@@ -471,6 +477,25 @@ public static class OutputFormatters
         }
 
         await WriteToFileAsync(md.ToString(), options, "md");
+    }
+
+    // Converts an absolute file path to a forward-slash URI relative to baseDir,
+    // which GitHub code scanning resolves against the repository root. Falls back
+    // to the path as-is when a relative path can't be formed (e.g. different drive).
+    private static string ToRelativeUri(string? path, string baseDir)
+    {
+        if (string.IsNullOrEmpty(path))
+            return string.Empty;
+
+        try
+        {
+            var relative = Path.GetRelativePath(baseDir, Path.GetFullPath(path));
+            return relative.Replace('\\', '/');
+        }
+        catch
+        {
+            return path.Replace('\\', '/');
+        }
     }
 
     private static async Task WriteToFileAsync(string content, CommandLineOptions options, string defaultExtension)

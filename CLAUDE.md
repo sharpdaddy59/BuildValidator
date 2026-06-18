@@ -44,8 +44,9 @@ A comprehensive C# .NET console application that validates C# projects using a *
 **CI + metric accuracy** ✅
 - ✅ GitHub Actions workflow (`.github/workflows/ci.yml`): build+test gate, plus informational SARIF upload to code scanning
 - ✅ Cyclomatic complexity now counts &&/||/??, do-while, and each case label / switch-expression arm (McCabe/VS-aligned)
+- ✅ SARIF emits repo-root-relative forward-slash URIs (inline PR annotations) and the reserved `$schema` key
 
-**NEXT SESSION GOAL**: Phase 3 core items complete. Candidates: per-project results in solution mode; relativize SARIF file URIs for inline PR annotations; within-solution parallel compilation
+**NEXT SESSION GOAL**: Phase 3 core items complete. Candidates: per-project results in solution mode; within-solution parallel compilation
 
 **Working Example Tests**: 
 - Basic compilation: `dotnet run -- /mnt/c/dev/BuildValidator --verbosity detailed` ✅

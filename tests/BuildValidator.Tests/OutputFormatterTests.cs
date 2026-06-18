@@ -79,6 +79,62 @@ public class OutputFormatterTests
     }
 
     [Fact]
+    public async Task Sarif_UsesRepoRelativeForwardSlashUris()
+    {
+        // Build platform-appropriate absolute paths so the assertion holds on
+        // both Windows and Linux CI.
+        var baseDir = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "repo"));
+        var filePath = Path.Combine(baseDir, "src", "Broken.cs");
+
+        var results = new[]
+        {
+            new BuildResult
+            {
+                ProjectPath = Path.Combine(baseDir, "src", "Broken.csproj"),
+                ProjectName = "Broken",
+                Status = BuildStatus.Failed,
+                Duration = TimeSpan.FromSeconds(0.3),
+                Diagnostics = new List<BuildDiagnostic>
+                {
+                    new BuildDiagnostic
+                    {
+                        Severity = DiagnosticSeverity.Error,
+                        Id = "CS0246",
+                        Message = "boom",
+                        FilePath = filePath,
+                        LineNumber = 7,
+                        ColumnNumber = 1
+                    }
+                }
+            }
+        };
+
+        using var dir = new TempDir();
+        var outFile = Path.Combine(dir.Path, "results.sarif");
+        var options = new CommandLineOptions
+        {
+            Directory = baseDir,
+            OutputFormat = "sarif",
+            OutputFile = outFile,
+            Verbosity = "minimal"
+        };
+
+        await OutputFormatters.WriteResultsAsync(results, options);
+
+        using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(outFile));
+        var uri = doc.RootElement
+            .GetProperty("runs")[0]
+            .GetProperty("results")[0]
+            .GetProperty("locations")[0]
+            .GetProperty("physicalLocation")
+            .GetProperty("artifactLocation")
+            .GetProperty("uri")
+            .GetString();
+
+        Assert.Equal("src/Broken.cs", uri);
+    }
+
+    [Fact]
     public async Task Json_IsParseable_AndMentionsProjects()
     {
         var json = await WriteAndRead("json");

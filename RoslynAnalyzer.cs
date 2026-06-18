@@ -228,7 +228,9 @@ public class RoslynAnalyzer
         var methodCount = root.DescendantNodes().OfType<MethodDeclarationSyntax>().Count();
         var classCount = root.DescendantNodes().OfType<ClassDeclarationSyntax>().Count();
         var propertyCount = root.DescendantNodes().OfType<PropertyDeclarationSyntax>().Count();
-        var maintainabilityIndex = CalculateMaintainabilityIndex(complexity, root.ToString().Length, methodCount);
+        var linesOfCode = CountLinesOfCode(root);
+        var halsteadVolume = CalculateHalsteadVolume(root);
+        var maintainabilityIndex = CalculateMaintainabilityIndex(complexity, linesOfCode, halsteadVolume);
 
         return new CodeMetrics
         {
@@ -287,15 +289,77 @@ public class RoslynAnalyzer
         return maxDepth;
     }
 
-    private static double CalculateMaintainabilityIndex(int complexity, int linesOfCode, int methodCount)
+    // Visual Studio-aligned Maintainability Index.
+    //   raw = 171 - 5.2*ln(HalsteadVolume) - 0.23*CyclomaticComplexity - 16.2*ln(LinesOfCode)
+    //   MI  = max(0, raw * 100 / 171)   -> normalized to the familiar 0-100 scale
+    // Inputs must be real lines of code and a real Halstead volume (see helpers below).
+    private static double CalculateMaintainabilityIndex(int complexity, int linesOfCode, double halsteadVolume)
     {
-        var halsteadVolume = Math.Log(linesOfCode + 1) * 10;
         var cyclomaticComplexity = Math.Max(complexity, 1);
-        
-        var maintainabilityIndex = 171 - 5.2 * Math.Log(halsteadVolume) - 0.23 * cyclomaticComplexity - 16.2 * Math.Log(Math.Max(linesOfCode, 1));
-        
-        return Math.Max(0, Math.Min(100, maintainabilityIndex));
+        var loc = Math.Max(linesOfCode, 1);
+
+        // Drop the volume term when there are no measurable operators/operands
+        // (ln(0) is undefined); an empty file should not produce a misleading score.
+        var volumeTerm = halsteadVolume > 0 ? 5.2 * Math.Log(halsteadVolume) : 0;
+
+        var raw = 171 - volumeTerm - 0.23 * cyclomaticComplexity - 16.2 * Math.Log(loc);
+        var normalized = raw * 100.0 / 171.0;
+
+        return Math.Max(0, Math.Min(100, normalized));
     }
+
+    // Physical lines of code: non-blank source lines. A reasonable, deterministic
+    // proxy for the LOC term (the previous code mistakenly passed character count).
+    private static int CountLinesOfCode(SyntaxNode root)
+    {
+        var text = root.SyntaxTree.GetText();
+        return text.Lines.Count(line => !string.IsNullOrWhiteSpace(line.ToString()));
+    }
+
+    // Halstead volume V = (N1 + N2) * log2(n1 + n2), where operators/operands are
+    // counted from syntax tokens. Operands are identifiers and literals (including
+    // true/false/null); everything else (keywords, punctuation, operators) is an
+    // operator. Trivia (comments/whitespace) are not tokens, so they're excluded.
+    private static double CalculateHalsteadVolume(SyntaxNode root)
+    {
+        var operators = new Dictionary<string, int>();
+        var operands = new Dictionary<string, int>();
+
+        foreach (var token in root.DescendantTokens())
+        {
+            var kind = token.Kind();
+            if (kind == SyntaxKind.EndOfFileToken || kind == SyntaxKind.BadToken)
+                continue;
+
+            if (IsOperand(kind))
+            {
+                var key = token.ValueText;
+                operands[key] = operands.GetValueOrDefault(key) + 1;
+            }
+            else if (!string.IsNullOrEmpty(token.Text))
+            {
+                operators[token.Text] = operators.GetValueOrDefault(token.Text) + 1;
+            }
+        }
+
+        int vocabulary = operators.Count + operands.Count;          // n1 + n2
+        long length = operators.Values.Sum() + operands.Values.Sum(); // N1 + N2
+
+        return vocabulary <= 1 ? 0 : length * Math.Log2(vocabulary);
+    }
+
+    private static bool IsOperand(SyntaxKind kind) => kind switch
+    {
+        SyntaxKind.IdentifierToken => true,
+        SyntaxKind.NumericLiteralToken => true,
+        SyntaxKind.StringLiteralToken => true,
+        SyntaxKind.CharacterLiteralToken => true,
+        SyntaxKind.InterpolatedStringTextToken => true,
+        SyntaxKind.TrueKeyword => true,
+        SyntaxKind.FalseKeyword => true,
+        SyntaxKind.NullKeyword => true,
+        _ => false
+    };
 
     private static CompilationIssue[] GetCompilationIssues(Compilation compilation)
     {

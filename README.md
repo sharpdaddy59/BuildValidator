@@ -1,5 +1,7 @@
 # BuildValidator
 
+[![CI](https://github.com/sharpdaddy59/BuildValidator/actions/workflows/ci.yml/badge.svg)](https://github.com/sharpdaddy59/BuildValidator/actions/workflows/ci.yml)
+
 A C# / .NET 10 console application that validates C# projects using a **hybrid approach**: MSBuild compilation validation combined with advanced Roslyn code analysis.
 
 It recursively discovers every C# project in a directory tree, compiles it to surface real build errors, and (optionally) layers on code-quality metrics, semantic null-safety analysis, and configurable style validation.
@@ -151,6 +153,13 @@ See the [User Guide](USER-GUIDE.md) for full configuration details and the [Arch
 | `OutputFormatters.cs` | Console, JSON, Markdown, CSV, SARIF output |
 | `CommandLineParser.cs` | Argument parsing |
 | `StyleConfiguration.cs` / `StyleConfigurationLoader.cs` | Configuration model and discovery |
+
+## Continuous Integration
+
+The [`CI` workflow](.github/workflows/ci.yml) runs on every push and pull request to `main`:
+
+- **Build & Test** — restores, builds in Release, and runs the full xUnit suite. This gates merges.
+- **Code Analysis (SARIF)** — runs BuildValidator on the repo and uploads the SARIF to GitHub code scanning, so findings appear in the **Security** tab. This job is informational and never fails the build.
 
 ## License
 

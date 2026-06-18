@@ -41,7 +41,11 @@ A comprehensive C# .NET console application that validates C# projects using a *
 - ✅ End-to-end black-box builds against fixture projects (passing, failing, .slnx)
 - Enablers: `InternalsVisibleTo`; `CommandLineParser` throws `CommandLineException` instead of `Environment.Exit`
 
-**NEXT SESSION GOAL**: Phase 3 core items complete. Candidates: GitHub Actions workflow (SARIF upload), cyclomatic-complexity accuracy (count &&/||/case/??), per-project results in solution mode
+**CI + metric accuracy** ✅
+- ✅ GitHub Actions workflow (`.github/workflows/ci.yml`): build+test gate, plus informational SARIF upload to code scanning
+- ✅ Cyclomatic complexity now counts &&/||/??, do-while, and each case label / switch-expression arm (McCabe/VS-aligned)
+
+**NEXT SESSION GOAL**: Phase 3 core items complete. Candidates: per-project results in solution mode; relativize SARIF file URIs for inline PR annotations; within-solution parallel compilation
 
 **Working Example Tests**: 
 - Basic compilation: `dotnet run -- /mnt/c/dev/BuildValidator --verbosity detailed` ✅

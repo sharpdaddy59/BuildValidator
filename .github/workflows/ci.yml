@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore BuildValidator.sln
+
+      - name: Build
+        run: dotnet build BuildValidator.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test BuildValidator.sln -c Release --no-build --verbosity normal
+
+  code-analysis:
+    name: Code Analysis (SARIF)
+    runs-on: ubuntu-latest
+    # Informational only: surfaces BuildValidator's findings in the Security tab.
+    # Code-quality findings should not gate merges, so this job never fails the run.
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Restore so MSBuildWorkspace can load the solution's projects.
+      - name: Restore
+        run: dotnet restore BuildValidator.sln
+
+      - name: Run BuildValidator
+        continue-on-error: true
+        run: >
+          dotnet run --project BuildValidator.csproj -c Release --
+          . --analysis --format sarif --output results.sarif --verbosity minimal
+
+      - name: Upload SARIF
+        if: always() && hashFiles('results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+          category: buildvalidator

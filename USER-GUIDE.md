@@ -127,6 +127,8 @@ BuildValidator uses a **solution-first discovery approach** for optimal analysis
 
 **What it measures**: The number of independent paths through your code. Higher complexity means more difficult testing and maintenance.
 
+**What counts as a decision point** (each adds 1 to a base of 1): `if`, `while`, `do`, `for`, `foreach`, `catch`, the conditional (`?:`) and null-coalescing (`??`) operators, each `&&` and `||`, and each `case` label or `switch` expression arm. This follows the standard McCabe definition used by Visual Studio (`default` labels and the `switch` statement itself are not counted).
+
 **Complexity Levels**:
 - **1-10**: Simple, easy to understand and test
 - **11-20**: Moderate complexity, consider refactoring

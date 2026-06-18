@@ -25,6 +25,38 @@ class C {
     }
 
     [Fact]
+    public async Task CyclomaticComplexity_CountsLogicalOperatorsAndCases()
+    {
+        // base 1 + if(1) + && (1) + two case labels (2) = 5. The switch itself
+        // is not counted; the default label is not a decision point.
+        const string src = @"
+class C {
+    int M(int x, bool a, bool b) {
+        if (a && b) { }
+        switch (x) {
+            case 1: return 1;
+            case 2: return 2;
+            default: return 0;
+        }
+    }
+}";
+        var metrics = await MetricsFor(src);
+        Assert.Equal(5, metrics.CyclomaticComplexity);
+    }
+
+    [Fact]
+    public async Task CyclomaticComplexity_CountsNullCoalescing()
+    {
+        // base 1 + ?? (1) = 2
+        const string src = @"
+class C {
+    string M(string? s) => s ?? ""default"";
+}";
+        var metrics = await MetricsFor(src);
+        Assert.Equal(2, metrics.CyclomaticComplexity);
+    }
+
+    [Fact]
     public async Task MaintainabilityIndex_IsNotZero_ForNormalFile()
     {
         // Regression guard: the old implementation passed character count as

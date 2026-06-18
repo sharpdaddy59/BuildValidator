@@ -245,18 +245,29 @@ public class RoslynAnalyzer
 
     private static int CalculateCyclomaticComplexity(SyntaxNode root)
     {
+        // Start at 1 and add one per decision point. This follows the standard
+        // McCabe definition (as used by Visual Studio): loops, catch clauses, the
+        // conditional/null-coalescing operators, each logical && / ||, and each
+        // case label / switch-expression arm (the switch itself is not counted —
+        // its branches are). default labels are not decision points.
         var complexity = 1;
 
-        var complexityNodes = root.DescendantNodes().Where(node =>
+        complexity += root.DescendantNodes().Count(node =>
             node.IsKind(SyntaxKind.IfStatement) ||
             node.IsKind(SyntaxKind.WhileStatement) ||
+            node.IsKind(SyntaxKind.DoStatement) ||
             node.IsKind(SyntaxKind.ForStatement) ||
             node.IsKind(SyntaxKind.ForEachStatement) ||
-            node.IsKind(SyntaxKind.SwitchStatement) ||
             node.IsKind(SyntaxKind.CatchClause) ||
-            node.IsKind(SyntaxKind.ConditionalExpression));
+            node.IsKind(SyntaxKind.ConditionalExpression) ||      // ?:
+            node.IsKind(SyntaxKind.CoalesceExpression) ||         // ??
+            node.IsKind(SyntaxKind.LogicalAndExpression) ||       // &&
+            node.IsKind(SyntaxKind.LogicalOrExpression) ||        // ||
+            node.IsKind(SyntaxKind.CaseSwitchLabel) ||            // case <const>:
+            node.IsKind(SyntaxKind.CasePatternSwitchLabel) ||     // case <pattern>:
+            node.IsKind(SyntaxKind.SwitchExpressionArm));         // x switch { arm => ... }
 
-        return complexity + complexityNodes.Count();
+        return complexity;
     }
 
     private static int CalculateMaxNestingDepth(SyntaxNode root)

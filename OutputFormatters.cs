@@ -109,7 +109,6 @@ public static class OutputFormatters
         var sarif = new
         {
             version = "2.1.0",
-            schema = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
             runs = new[]
             {
                 new
@@ -175,12 +174,27 @@ public static class OutputFormatters
             }
         };
 
-        var json = System.Text.Json.JsonSerializer.Serialize(sarif, new System.Text.Json.JsonSerializerOptions 
-        { 
+        var serializerOptions = new System.Text.Json.JsonSerializerOptions
+        {
             WriteIndented = true,
             PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
-        });
-        
+        };
+
+        // SARIF uses the reserved "$schema" key, which a C# anonymous type can't
+        // express. Serialize the body, then prepend $schema so the document
+        // validates (GitHub's code scanning rejects a plain "schema" property).
+        var root = System.Text.Json.JsonSerializer.SerializeToNode(sarif, serializerOptions)!.AsObject();
+        var document = new System.Text.Json.Nodes.JsonObject
+        {
+            ["$schema"] = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json"
+        };
+        foreach (var property in root)
+        {
+            document[property.Key] = property.Value?.DeepClone();
+        }
+
+        var json = document.ToJsonString(serializerOptions);
+
         await WriteToFileAsync(json, options, "sarif");
     }
 

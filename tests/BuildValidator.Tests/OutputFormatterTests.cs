@@ -69,6 +69,9 @@ public class OutputFormatterTests
         var root = doc.RootElement;
 
         Assert.Equal("2.1.0", root.GetProperty("version").GetString());
+        // GitHub code scanning requires the reserved "$schema" key (not "schema").
+        Assert.True(root.TryGetProperty("$schema", out _), "SARIF must use the $schema property");
+        Assert.False(root.TryGetProperty("schema", out _), "SARIF must not use a plain 'schema' property");
         var runs = root.GetProperty("runs");
         Assert.True(runs.GetArrayLength() >= 1);
         var driver = runs[0].GetProperty("tool").GetProperty("driver");

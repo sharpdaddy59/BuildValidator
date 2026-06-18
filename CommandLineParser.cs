@@ -16,6 +16,20 @@ public record CommandLineOptions
     public string? OutputFile { get; init; } = null;
 }
 
+// Thrown by the parser instead of calling Environment.Exit, so the parser is
+// testable and Program.cs owns process termination. An empty Message means the
+// caller already wrote output (e.g. help text) and only the exit code matters.
+public class CommandLineException : Exception
+{
+    public int ExitCode { get; }
+
+    public CommandLineException(string? message, int exitCode)
+        : base(message ?? string.Empty)
+    {
+        ExitCode = exitCode;
+    }
+}
+
 public static class CommandLineParser
 {
     public static CommandLineOptions Parse(string[] args)
@@ -23,14 +37,14 @@ public static class CommandLineParser
         if (args.Length == 0)
         {
             ShowHelp();
-            Environment.Exit(1);
+            throw new CommandLineException(null, 1);
         }
 
         // Check for help first
         if (args[0] == "--help" || args[0] == "-h")
         {
             ShowHelp();
-            Environment.Exit(0);
+            throw new CommandLineException(null, 0);
         }
 
         var options = new CommandLineOptions
@@ -53,7 +67,7 @@ public static class CommandLineParser
         for (int i = 1; i < args.Length; i++)
         {
             string arg = args[i];
-            
+
             if (arg == "--parallel" || arg == "-p")
             {
                 if (i + 1 < args.Length && int.TryParse(args[i + 1], out int parallel))
@@ -63,8 +77,7 @@ public static class CommandLineParser
                 }
                 else
                 {
-                    Console.Error.WriteLine("Error: --parallel requires a numeric value");
-                    Environment.Exit(1);
+                    throw Fail("Error: --parallel requires a numeric value");
                 }
             }
             else if (arg == "--config" || arg == "-c")
@@ -72,7 +85,7 @@ public static class CommandLineParser
                 if (i + 1 < args.Length)
                 {
                     string config = args[i + 1];
-                    if (config.Equals("Debug", StringComparison.OrdinalIgnoreCase) || 
+                    if (config.Equals("Debug", StringComparison.OrdinalIgnoreCase) ||
                         config.Equals("Release", StringComparison.OrdinalIgnoreCase))
                     {
                         options = options with { Configuration = config };
@@ -80,14 +93,12 @@ public static class CommandLineParser
                     }
                     else
                     {
-                        Console.Error.WriteLine("Error: Configuration must be either 'Debug' or 'Release'");
-                        Environment.Exit(1);
+                        throw Fail("Error: Configuration must be either 'Debug' or 'Release'");
                     }
                 }
                 else
                 {
-                    Console.Error.WriteLine("Error: --config requires a value");
-                    Environment.Exit(1);
+                    throw Fail("Error: --config requires a value");
                 }
             }
             else if (arg == "--verbosity" || arg == "-v")
@@ -102,14 +113,12 @@ public static class CommandLineParser
                     }
                     else
                     {
-                        Console.Error.WriteLine("Error: Verbosity must be one of: minimal, normal, detailed");
-                        Environment.Exit(1);
+                        throw Fail("Error: Verbosity must be one of: minimal, normal, detailed");
                     }
                 }
                 else
                 {
-                    Console.Error.WriteLine("Error: --verbosity requires a value");
-                    Environment.Exit(1);
+                    throw Fail("Error: --verbosity requires a value");
                 }
             }
             else if (arg == "--warnings" || arg == "-w")
@@ -137,8 +146,7 @@ public static class CommandLineParser
                 }
                 else
                 {
-                    Console.Error.WriteLine("Error: --complexity-threshold requires a numeric value");
-                    Environment.Exit(1);
+                    throw Fail("Error: --complexity-threshold requires a numeric value");
                 }
             }
             else if (arg == "--maintainability-threshold")
@@ -150,8 +158,7 @@ public static class CommandLineParser
                 }
                 else
                 {
-                    Console.Error.WriteLine("Error: --maintainability-threshold requires a numeric value");
-                    Environment.Exit(1);
+                    throw Fail("Error: --maintainability-threshold requires a numeric value");
                 }
             }
             else if (arg == "--format")
@@ -166,14 +173,12 @@ public static class CommandLineParser
                     }
                     else
                     {
-                        Console.Error.WriteLine("Error: Format must be one of: console, json, markdown, md, csv, sarif");
-                        Environment.Exit(1);
+                        throw Fail("Error: Format must be one of: console, json, markdown, md, csv, sarif");
                     }
                 }
                 else
                 {
-                    Console.Error.WriteLine("Error: --format requires a value");
-                    Environment.Exit(1);
+                    throw Fail("Error: --format requires a value");
                 }
             }
             else if (arg == "--output")
@@ -185,34 +190,30 @@ public static class CommandLineParser
                 }
                 else
                 {
-                    Console.Error.WriteLine("Error: --output requires a file path");
-                    Environment.Exit(1);
+                    throw Fail("Error: --output requires a file path");
                 }
             }
             else if (arg == "--help" || arg == "-h")
             {
                 ShowHelp();
-                Environment.Exit(0);
+                throw new CommandLineException(null, 0);
             }
             else
             {
-                Console.Error.WriteLine($"Error: Unknown argument '{arg}'");
-                Environment.Exit(1);
+                throw Fail($"Error: Unknown argument '{arg}'");
             }
         }
 
         // Validate directory exists
         if (!Directory.Exists(options.Directory))
         {
-            Console.Error.WriteLine($"Error: Directory '{options.Directory}' does not exist");
-            Environment.Exit(1);
+            throw Fail($"Error: Directory '{options.Directory}' does not exist");
         }
 
         // Validate parallel count
         if (options.ParallelCount <= 0)
         {
-            Console.Error.WriteLine("Error: Parallel count must be greater than 0");
-            Environment.Exit(1);
+            throw Fail("Error: Parallel count must be greater than 0");
         }
 
         // Auto-detect format from file extension if output file is specified
@@ -222,13 +223,13 @@ public static class CommandLineParser
             var detectedFormat = extension switch
             {
                 ".csv" => "csv",
-                ".sarif" => "sarif", 
+                ".sarif" => "sarif",
                 ".json" => "json",
                 ".md" => "markdown",
                 ".markdown" => "markdown",
                 _ => "console"
             };
-            
+
             if (detectedFormat != "console")
             {
                 options = options with { OutputFormat = detectedFormat };
@@ -240,6 +241,13 @@ public static class CommandLineParser
         }
 
         return options;
+    }
+
+    // Writes the error message to stderr and signals exit code 1.
+    private static CommandLineException Fail(string message)
+    {
+        Console.Error.WriteLine(message);
+        return new CommandLineException(message, 1);
     }
 
     private static void ShowHelp()

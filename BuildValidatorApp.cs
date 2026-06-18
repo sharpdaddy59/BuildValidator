@@ -96,7 +96,7 @@ public static class BuildValidatorApp
         }
     }
     
-    private static List<string> DiscoverProjects(string directory)
+    internal static List<string> DiscoverProjects(string directory)
     {
         var projectFiles = new List<string>();
 
@@ -123,7 +123,7 @@ public static class BuildValidatorApp
     // When both .sln and .slnx exist for the same solution (same directory + base name),
     // prefer the .slnx. This mirrors MSBuild's own precedence and avoids building the
     // same solution twice. .NET 10's `dotnet new sln` emits .slnx by default.
-    private static List<string> DeduplicateSolutionFiles(List<string> solutionFiles)
+    internal static List<string> DeduplicateSolutionFiles(List<string> solutionFiles)
     {
         var slnxBaseNames = new HashSet<string>(
             solutionFiles

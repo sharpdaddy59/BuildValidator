@@ -34,7 +34,14 @@ A comprehensive C# .NET console application that validates C# projects using a *
 - ✅ **Comprehensive style validation** with DOC, ENC, ACC, ORG rule categories
 - ✅ **Solution file support** for multi-project analysis
 
-**NEXT SESSION GOAL**: Complete remaining Phase 3 items - comprehensive testing (parallel builds now done)
+**Test suite added** ✅ (xUnit, `tests/BuildValidator.Tests`)
+- ✅ Pure-logic units (discovery + .slnx dedup, CLI parsing, metrics incl. the MI regression)
+- ✅ Analyzer rule coverage (ENC001/DOC001 and rule-id integrity)
+- ✅ Output formatter shape (CSV/SARIF/JSON)
+- ✅ End-to-end black-box builds against fixture projects (passing, failing, .slnx)
+- Enablers: `InternalsVisibleTo`; `CommandLineParser` throws `CommandLineException` instead of `Environment.Exit`
+
+**NEXT SESSION GOAL**: Phase 3 core items complete. Candidates: GitHub Actions workflow (SARIF upload), cyclomatic-complexity accuracy (count &&/||/case/??), per-project results in solution mode
 
 **Working Example Tests**: 
 - Basic compilation: `dotnet run -- /mnt/c/dev/BuildValidator --verbosity detailed` ✅
@@ -201,7 +208,7 @@ Code Quality: 2 excellent, 1 needs improvement
 18. ✅ **Create configurable rule system** (JSON config, severity overrides, rule filtering, file exclusions)
 19. ✅ **Add parallel build support** (SemaphoreSlim-throttled, wall-clock timing) for better performance
 20. ✅ **Add solution file support** (.sln and .slnx files with project dependencies)
-21. ⏳ **Add comprehensive testing** with real projects
+21. ✅ **Add comprehensive testing** (xUnit: units, analyzer rules, formatters, e2e fixture builds)
 
 ### Phase 4: Advanced Semantic Analysis ✅ **COMPLETE**
 22. ✅ **Advanced null reference detection** (SEM012-SEM015: array access, nullable types, assignments, return values)

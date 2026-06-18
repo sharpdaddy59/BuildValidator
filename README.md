@@ -1,15 +1,15 @@
 # BuildValidator
 
-A C# / .NET 8 console application that validates C# projects using a **hybrid approach**: MSBuild compilation validation combined with advanced Roslyn code analysis.
+A C# / .NET 10 console application that validates C# projects using a **hybrid approach**: MSBuild compilation validation combined with advanced Roslyn code analysis.
 
 It recursively discovers every C# project in a directory tree, compiles it to surface real build errors, and (optionally) layers on code-quality metrics, semantic null-safety analysis, and configurable style validation.
 
 ## Features
 
 ### Core validation (MSBuild-based)
-- **Project discovery** — recursively scans for `.csproj`, `.vbproj`, and `.sln` files
+- **Project discovery** — recursively scans for `.csproj`, `.vbproj`, `.sln`, and `.slnx` files
 - **MSBuild integration** — uses `MSBuildWorkspace` for accurate compilation and dependency resolution
-- **Solution-first builds** — prefers `.sln` files when present, falls back to individual projects
+- **Solution-first builds** — prefers solution files (`.sln`/`.slnx`) when present, falls back to individual projects; when both formats exist for one solution, the `.slnx` wins
 - **Detailed reporting** — errors and warnings with file paths and line numbers
 - **Multiple output formats** — console, JSON, Markdown, CSV, and SARIF (for CI/CD integration)
 
@@ -22,7 +22,7 @@ It recursively discovers every C# project in a directory tree, compiles it to su
 
 ## Requirements
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - The .NET SDK / MSBuild toolchain installed (BuildValidator locates MSBuild automatically via `Microsoft.Build.Locator`)
 
 ## Build

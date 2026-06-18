@@ -2,7 +2,15 @@
 
 A comprehensive C# .NET console application that validates C# projects using a **hybrid approach**: MSBuild compilation validation + advanced Roslyn code analysis.
 
-## Current Session Status (2025-08-19)
+## Current Session Status (2026-06-18)
+
+**Tooling upgrade: VS 2026 / .NET 10** ✅
+- ✅ Retargeted to `net10.0`; upgraded Roslyn to 5.3.0 and `Microsoft.Build.Locator` to 1.11.2
+- ✅ MSBuild assemblies referenced with `ExcludeAssets="runtime"`/`PrivateAssets="all"` (Build.Locator 1.11 MSBL001 requirement)
+- ✅ **`.slnx` solution support**: discovery now finds `.slnx` (the .NET 10 `dotnet new sln` default); `MSBuildWorkspace.OpenSolutionAsync` parses it natively (verified — no custom parser needed)
+- ✅ When both `.sln` and `.slnx` exist for the same solution, the `.slnx` is preferred (avoids double-building)
+
+## Prior Session Status (2025-08-19)
 
 **Phase 1 COMPLETE**: MSBuildWorkspace compilation engine is working perfectly ✅
 - ✅ MSBuild.Locator initialization resolves "language not supported" errors
@@ -43,7 +51,7 @@ A comprehensive C# .NET console application that validates C# projects using a *
 ## Features
 
 ### Core Validation (MSBuild-based)
-- **Project Discovery**: Recursively scans for `.csproj`, `.vbproj`, and `.sln` files
+- **Project Discovery**: Recursively scans for `.csproj`, `.vbproj`, `.sln`, and `.slnx` files
 - **MSBuild Integration**: Uses MSBuildWorkspace for accurate project compilation
 - **Parallel Builds**: Builds multiple projects concurrently for performance
 - **Detailed Reporting**: Comprehensive error reporting with file paths and line numbers
@@ -192,7 +200,7 @@ Code Quality: 2 excellent, 1 needs improvement
 17. ✅ **Add performance analysis patterns** (LINQ inefficiencies, memory allocations, async patterns)
 18. ✅ **Create configurable rule system** (JSON config, severity overrides, rule filtering, file exclusions)
 19. ⏳ **Add parallel build support** for better performance
-20. ✅ **Add solution file support** (.sln files with project dependencies)
+20. ✅ **Add solution file support** (.sln and .slnx files with project dependencies)
 21. ⏳ **Add comprehensive testing** with real projects
 
 ### Phase 4: Advanced Semantic Analysis ✅ **COMPLETE**

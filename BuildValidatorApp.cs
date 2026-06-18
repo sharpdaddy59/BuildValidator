@@ -25,8 +25,10 @@ public static class BuildValidatorApp
             }
 
             // Solution-first approach: prefer solution files over individual projects
-            var solutionFiles = discoveredFiles.Where(f => f.EndsWith(".sln", StringComparison.OrdinalIgnoreCase)).ToList();
-            var projectFiles = discoveredFiles.Where(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) || 
+            var solutionFiles = discoveredFiles.Where(f => f.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
+                                                         f.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase)).ToList();
+            solutionFiles = DeduplicateSolutionFiles(solutionFiles);
+            var projectFiles = discoveredFiles.Where(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
                                                          f.EndsWith(".vbproj", StringComparison.OrdinalIgnoreCase)).ToList();
 
             var buildEngine = new BuildEngine(options);
@@ -94,11 +96,14 @@ public static class BuildValidatorApp
     private static List<string> DiscoverProjects(string directory)
     {
         var projectFiles = new List<string>();
-        
-        // Look for solution files first
+
+        // Look for solution files first (both legacy .sln and the newer XML-based .slnx)
         var solutionFiles = Directory.GetFiles(directory, "*.sln", SearchOption.AllDirectories);
         projectFiles.AddRange(solutionFiles);
-        
+
+        var slnxFiles = Directory.GetFiles(directory, "*.slnx", SearchOption.AllDirectories);
+        projectFiles.AddRange(slnxFiles);
+
         // Then look for individual project files
         var csharpProjects = Directory.GetFiles(directory, "*.csproj", SearchOption.AllDirectories);
         projectFiles.AddRange(csharpProjects);
@@ -108,7 +113,32 @@ public static class BuildValidatorApp
         
         // Sort for consistent ordering
         projectFiles.Sort();
-        
+
         return projectFiles;
+    }
+
+    // When both .sln and .slnx exist for the same solution (same directory + base name),
+    // prefer the .slnx. This mirrors MSBuild's own precedence and avoids building the
+    // same solution twice. .NET 10's `dotnet new sln` emits .slnx by default.
+    private static List<string> DeduplicateSolutionFiles(List<string> solutionFiles)
+    {
+        var slnxBaseNames = new HashSet<string>(
+            solutionFiles
+                .Where(f => f.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase))
+                .Select(GetSolutionKey),
+            StringComparer.OrdinalIgnoreCase);
+
+        return solutionFiles
+            .Where(f => f.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase) ||
+                        !slnxBaseNames.Contains(GetSolutionKey(f)))
+            .ToList();
+    }
+
+    // Directory + base name, used to match a .sln against its .slnx counterpart.
+    private static string GetSolutionKey(string solutionPath)
+    {
+        var dir = Path.GetDirectoryName(solutionPath) ?? string.Empty;
+        var name = Path.GetFileNameWithoutExtension(solutionPath);
+        return Path.Combine(dir, name);
     }
 }

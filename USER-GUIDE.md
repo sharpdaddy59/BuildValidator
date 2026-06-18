@@ -18,7 +18,7 @@ A comprehensive guide to using BuildValidator for C# project validation and code
 
 ### Installation
 
-BuildValidator is a .NET 8 console application. To get started:
+BuildValidator is a .NET 10 console application. To get started:
 
 1. Clone or download BuildValidator
 2. Build the project: `dotnet build`
@@ -46,7 +46,7 @@ dotnet run -- ./single-project --metrics-only
 ### Expected Output
 
 #### Solution Mode (Preferred)
-When BuildValidator finds `.sln` files, it uses solution mode for better dependency resolution:
+When BuildValidator finds solution files (`.sln` or `.slnx`), it uses solution mode for better dependency resolution. If both a `.sln` and a `.slnx` exist for the same solution, the `.slnx` is used:
 
 ```
 Building & Analyzing C# Projects in: ./src
@@ -66,7 +66,7 @@ Code Quality: 1 needs improvement
 ```
 
 #### Individual Project Mode (Fallback)
-When no `.sln` files are found, BuildValidator falls back to individual project mode:
+When no solution files (`.sln`/`.slnx`) are found, BuildValidator falls back to individual project mode:
 
 ```
 Building & Analyzing C# Projects in: ./src
@@ -89,8 +89,10 @@ BuildValidator uses a **solution-first discovery approach** for optimal analysis
 
 ### Discovery Priority
 
-1. **Solution Mode** (Preferred): When `.sln` files are found
+1. **Solution Mode** (Preferred): When solution files (`.sln` or `.slnx`) are found
    - Uses `MSBuildWorkspace.OpenSolutionAsync()` for complete dependency resolution
+   - Supports both the legacy `.sln` format and the newer XML-based `.slnx` format (the .NET 10 default)
+   - When both formats exist for the same solution, the `.slnx` takes precedence
    - Analyzes all projects in the solution as a unified workspace
    - Provides better cross-project reference analysis
    - Handles complex project dependencies automatically
@@ -103,12 +105,12 @@ BuildValidator uses a **solution-first discovery approach** for optimal analysis
 ### When Each Mode is Used
 
 **Solution Mode Activated When**:
-- Directory contains any `.sln` file(s)
+- Directory contains any `.sln` or `.slnx` file(s)
 - Better for enterprise codebases with multiple related projects
 - Provides comprehensive dependency analysis
 
 **Individual Project Mode Used When**:
-- No `.sln` files found in directory tree
+- No `.sln`/`.slnx` files found in directory tree
 - Perfect for single-project repositories
 - Simple libraries or standalone applications
 
@@ -1310,15 +1312,15 @@ BuildValidator ./src --analysis --verbosity minimal --output pipeline-results.js
 
 #### "No C# project or solution files found"
 
-**Cause**: BuildValidator couldn't find `.csproj`, `.vbproj`, or `.sln` files in the specified directory.
+**Cause**: BuildValidator couldn't find `.csproj`, `.vbproj`, `.sln`, or `.slnx` files in the specified directory.
 
 **Solution**:
 ```bash
 # Verify you're in the right directory
-ls *.csproj *.vbproj *.sln
+ls *.csproj *.vbproj *.sln *.slnx
 
 # Check subdirectories recursively
-find . -name "*.csproj" -o -name "*.vbproj" -o -name "*.sln"
+find . -name "*.csproj" -o -name "*.vbproj" -o -name "*.sln" -o -name "*.slnx"
 
 # Try parent directory if projects are in subdirectories
 BuildValidator ../
@@ -1326,7 +1328,8 @@ BuildValidator ../
 
 **Understanding Discovery**:
 - BuildValidator searches recursively for both solutions and projects
-- Solution files (`.sln`) take priority over individual projects
+- Solution files (`.sln`/`.slnx`) take priority over individual projects
+- When both a `.sln` and `.slnx` exist for the same solution, the `.slnx` is preferred
 - Individual projects are processed when no solution is found
 
 #### "No valid C# projects or solutions found"

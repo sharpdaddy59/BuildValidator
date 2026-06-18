@@ -159,7 +159,7 @@ var compilation = await project.GetCompilationAsync();
 1. **MSBuild Engine Reliability**
    - Handles complex .NET project structures
    - Resolves NuGet dependencies automatically
-   - Supports all project types (.csproj, .vbproj, .sln)
+   - Supports all project types (.csproj, .vbproj, .sln, .slnx)
    - Uses same compilation logic as Visual Studio/dotnet build
 
 2. **Direct Roslyn Flexibility**

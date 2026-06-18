@@ -162,7 +162,7 @@ public string GetUserStatus(User user)
 
 ### Maintainability Index
 
-**What it measures**: A composite score (0-100) combining complexity, code size, and other factors. Higher scores indicate more maintainable code.
+**What it measures**: A composite score (0-100) using the Visual Studio-aligned formula, combining Halstead volume (operators/operands), cyclomatic complexity, and lines of code. Higher scores indicate more maintainable code. The score is normalized so it matches the 0-100 scale Visual Studio reports.
 
 **Maintainability Levels**:
 - **80-100**: Excellent maintainability
@@ -172,8 +172,10 @@ public string GetUserStatus(User user)
 
 **Factors that affect maintainability**:
 - High cyclomatic complexity (lowers score)
-- Long methods and large files (lowers score)
-- Good documentation and clear structure (raises score)
+- Large files / more lines of code (lowers score)
+- High Halstead volume — many distinct operators and operands (lowers score)
+
+Note: comments and blank lines are excluded from the calculation, so adding documentation does not change the score.
 
 **Recommended Thresholds**:
 - **New projects**: Maintain index > 60

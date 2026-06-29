@@ -68,7 +68,7 @@ A comprehensive C# .NET console application that validates C# projects using a *
 - **MSBuild Integration**: Uses MSBuildWorkspace for accurate project compilation
 - **Parallel Builds**: Builds multiple projects concurrently for performance
 - **Detailed Reporting**: Comprehensive error reporting with file paths and line numbers
-- **Flexible Output**: Console output with colored status indicators
+- **Flexible Output**: Console output, CSV/SARIF/JSON exports, and markdown tables suitable for PR comments
 
 ### Advanced Analysis (Roslyn-based)
 - **Code Quality Metrics**: Cyclomatic complexity, maintainability index, nesting depth

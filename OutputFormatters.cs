@@ -1,3 +1,4 @@
+using Microsoft.CodeAnalysis;
 using System.Text;
 
 namespace BuildValidator;
@@ -352,129 +353,162 @@ public static class OutputFormatters
     {
         var md = new StringBuilder();
         var resultsList = results.ToList();
+        var successCount = resultsList.Count(r => r.Status == BuildStatus.Success);
+        var failureCount = resultsList.Count(r => r.Status == BuildStatus.Failed);
+        var totalDuration = TimeSpan.FromMilliseconds(resultsList.Sum(r => r.Duration.TotalMilliseconds));
         
+        // Header
         md.AppendLine("# BuildValidator Results");
         md.AppendLine();
-        md.AppendLine($"**Analysis Date**: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-        md.AppendLine($"**Total Projects**: {resultsList.Count}");
-        md.AppendLine($"**Successful**: {resultsList.Count(r => r.Status == BuildStatus.Success)}");
-        md.AppendLine($"**Failed**: {resultsList.Count(r => r.Status == BuildStatus.Failed)}");
+        md.AppendLine($"**Date:** {DateTime.Now:yyyy-MM-dd HH:mm:ss} | **Total Projects:** {resultsList.Count} | **✅ Passed:** {successCount} | **❌ Failed:** {failureCount} | **Duration:** {totalDuration.TotalSeconds:F1}s");
         md.AppendLine();
 
+        // Project summary table
+        md.AppendLine("## Project Results");
+        md.AppendLine();
+        md.AppendLine("| # | Project | Status | Duration | Errors |");
+        md.AppendLine("|---|---------|--------|----------|--------|");
+
+        int index = 1;
         foreach (var result in resultsList)
         {
-            md.AppendLine($"## {result.ProjectName}");
+            var status = result.Status == BuildStatus.Success ? "✅ Passed" : "❌ Failed";
+            var errorSummary = string.Empty;
+
+            if (result.Status == BuildStatus.Failed)
+            {
+                if (!string.IsNullOrEmpty(result.ErrorMessage))
+                    errorSummary = result.ErrorMessage;
+                else if (result.Diagnostics.Any())
+                {
+                    var firstError = result.Diagnostics.FirstOrDefault(d => d.Severity == DiagnosticSeverity.Error);
+                    if (firstError != null)
+                        errorSummary = $"{firstError.Id}: {firstError.Message}";
+                }
+            }
+            
+            // Escape pipe characters in cell content
+            errorSummary = errorSummary.Replace("|", "\\|");
+            
+            md.AppendLine($"| {index} | {result.ProjectName} | {status} | {result.Duration.TotalSeconds:F1}s | {errorSummary} |");
+            index++;
+        }
+
+        md.AppendLine();
+
+        // Diagnostics table across all projects (if any)
+        var allDiagnostics = resultsList
+            .SelectMany(r => r.Diagnostics.Select(d => new { r.ProjectName, d }))
+            .ToList();
+        
+        if (allDiagnostics.Any())
+        {
+            md.AppendLine("### Diagnostics");
             md.AppendLine();
-            md.AppendLine($"- **Status**: {(result.Status == BuildStatus.Success ? "✅ Success" : "❌ Failed")}");
-            md.AppendLine($"- **Duration**: {result.Duration.TotalSeconds:F1}s");
-            md.AppendLine($"- **Path**: `{result.ProjectPath}`");
+            md.AppendLine("| Project | Severity | Code | Message | Location |");
+            md.AppendLine("|---------|----------|------|---------|----------|");
 
-            if (!string.IsNullOrEmpty(result.ErrorMessage))
+            foreach (var item in allDiagnostics)
             {
-                md.AppendLine($"- **Error**: {result.ErrorMessage}");
-            }
-
-            if (result.Diagnostics.Any())
-            {
-                md.AppendLine();
-                md.AppendLine("### Diagnostics");
-                md.AppendLine();
-                foreach (var diagnostic in result.Diagnostics)
+                var location = string.Empty;
+                if (!string.IsNullOrEmpty(item.d.FilePath))
                 {
-                    md.AppendLine($"- **{diagnostic.Severity}** {diagnostic.Id}: {diagnostic.Message}");
-                    if (!string.IsNullOrEmpty(diagnostic.FilePath))
-                    {
-                        md.AppendLine($"  - File: `{diagnostic.FilePath}:{diagnostic.LineNumber}`");
-                    }
+                    var fileName = Path.GetFileName(item.d.FilePath);
+                    location = item.d.LineNumber > 0 ? $"{fileName}:{item.d.LineNumber}" : fileName;
                 }
+                var message = item.d.Message.Replace("|", "\\|");
+                md.AppendLine($"| {item.ProjectName} | {item.d.Severity} | {item.d.Id} | {message} | {location} |");
             }
-
-            if (result.AnalysisResults != null && result.AnalysisResults.Any())
-            {
-                md.AppendLine();
-                md.AppendLine("### Code Quality Analysis");
-                md.AppendLine();
-
-                foreach (var analysis in result.AnalysisResults)
-                {
-                    var fileName = Path.GetFileName(analysis.FilePath);
-                    
-                    // Make file name more prominent with larger heading and separator
-                    md.AppendLine("---");
-                    md.AppendLine();
-                    md.AppendLine($"## 📄 **{fileName}**");
-                    md.AppendLine();
-                    md.AppendLine("**📊 Code Metrics:**");
-                    md.AppendLine($"- **Complexity**: {analysis.CodeMetrics.CyclomaticComplexity}");
-                    md.AppendLine($"- **Maintainability**: {analysis.CodeMetrics.MaintainabilityIndex:F0}");
-                    md.AppendLine($"- **Methods**: {analysis.CodeMetrics.MethodCount}");
-                    md.AppendLine($"- **Classes**: {analysis.CodeMetrics.ClassCount}");
-                    md.AppendLine($"- **Lines of Code**: {analysis.SyntaxAnalysis.CodeLines}");
-
-                    // Code Issues
-                    if (analysis.SemanticAnalysis.UnusedUsings.Any() || analysis.SemanticAnalysis.PotentialNullReferences.Any())
-                    {
-                        md.AppendLine();
-                        md.AppendLine("**🚨 Code Issues:**");
-                        
-                        foreach (var issue in analysis.SemanticAnalysis.UnusedUsings)
-                        {
-                            md.AppendLine($"- Line {issue.Line}: {issue.Message}");
-                        }
-                        
-                        foreach (var issue in analysis.SemanticAnalysis.PotentialNullReferences)
-                        {
-                            md.AppendLine($"- Line {issue.Line}: {issue.Message}");
-                        }
-                    }
-
-                    // Performance Analysis
-                    var allPerformanceIssues = analysis.PerformanceAnalysis.LinqPerformanceIssues
-                        .Concat(analysis.PerformanceAnalysis.AllocationIssues)
-                        .Concat(analysis.PerformanceAnalysis.AsyncPerformanceIssues)
-                        .Concat(analysis.PerformanceAnalysis.StringPerformanceIssues)
-                        .ToArray();
-
-                    if (allPerformanceIssues.Any())
-                    {
-                        md.AppendLine();
-                        md.AppendLine("**⚡ Performance Analysis:**");
-                        md.AppendLine($"- Total Issues: {analysis.PerformanceAnalysis.Metrics.TotalPerformanceIssues}");
-                        md.AppendLine($"- High Severity: {analysis.PerformanceAnalysis.Metrics.HighSeverityIssues}");
-                        md.AppendLine($"- Medium Severity: {analysis.PerformanceAnalysis.Metrics.MediumSeverityIssues}");
-                        md.AppendLine($"- Low Severity: {analysis.PerformanceAnalysis.Metrics.LowSeverityIssues}");
-                        
-                        md.AppendLine();
-                        md.AppendLine("**📋 Performance Issues by Category:**");
-                        
-                        var groupedIssues = allPerformanceIssues.GroupBy(i => i.Category);
-                        foreach (var group in groupedIssues)
-                        {
-                            md.AppendLine($"- **{group.Key}** ({group.Count()} issues):");
-                            foreach (var issue in group.OrderByDescending(i => i.Severity).Take(5)) // Top 5 issues per category
-                            {
-                                var severityIcon = issue.Severity switch
-                                {
-                                    PerformanceSeverity.High => "🔴",
-                                    PerformanceSeverity.Medium => "🟡",
-                                    PerformanceSeverity.Low => "🟢",
-                                    _ => "⚪"
-                                };
-                                md.AppendLine($"  - {severityIcon} Line {issue.Line}: {issue.Message}");
-                                if (!string.IsNullOrEmpty(issue.Recommendation))
-                                {
-                                    md.AppendLine($"    - 💡 {issue.Recommendation}");
-                                }
-                            }
-                        }
-                    }
-
-                    md.AppendLine();
-                }
-            }
-
             md.AppendLine();
         }
+
+        // Analysis results across all projects
+        var projectsWithAnalysis = resultsList.Where(r => r.AnalysisResults != null && r.AnalysisResults.Any()).ToList();
+        if (projectsWithAnalysis.Any())
+        {
+            md.AppendLine("---");
+            md.AppendLine();
+            md.AppendLine("## Code Quality Analysis");
+            md.AppendLine();
+
+            // Code metrics table
+            md.AppendLine("### Code Metrics");
+            md.AppendLine();
+            md.AppendLine("| Project | File | Complexity | Maintainability | Methods | Classes | LOC |");
+            md.AppendLine("|---------|------|-----------|----------------|---------|---------|-----|");
+
+            foreach (var result in projectsWithAnalysis)
+            {
+                foreach (var analysis in result.AnalysisResults!)
+                {
+                    var fileName = Path.GetFileName(analysis.FilePath);
+                    md.AppendLine($"| {result.ProjectName} | {fileName} | {analysis.CodeMetrics.CyclomaticComplexity} | {analysis.CodeMetrics.MaintainabilityIndex:F0} | {analysis.CodeMetrics.MethodCount} | {analysis.CodeMetrics.ClassCount} | {analysis.SyntaxAnalysis.CodeLines} |");
+                }
+            }
+            md.AppendLine();
+
+            // Code issues table (unused usings, null refs)
+            var allCodeIssues = projectsWithAnalysis
+                .SelectMany(r => r.AnalysisResults!.SelectMany(a =>
+                    a.SemanticAnalysis.UnusedUsings.Select(u => new { r.ProjectName, File = Path.GetFileName(a.FilePath), Type = "Unused Using", u.Line, Severity = "Low", u.Message })
+                    .Concat(a.SemanticAnalysis.PotentialNullReferences.Select(n => new { r.ProjectName, File = Path.GetFileName(a.FilePath), Type = "Null Reference", n.Line, Severity = "Medium", n.Message }))))
+                .ToList();
+
+            if (allCodeIssues.Any())
+            {
+                md.AppendLine("### Code Issues");
+                md.AppendLine();
+                md.AppendLine("| Project | File | Type | Line | Severity | Message |");
+                md.AppendLine("|---------|------|------|------|----------|---------|");
+
+                foreach (var issue in allCodeIssues)
+                {
+                    var msg = issue.Message.Replace("|", "\\|");
+                    md.AppendLine($"| {issue.ProjectName} | {issue.File} | {issue.Type} | {issue.Line} | {issue.Severity} | {msg} |");
+                }
+                md.AppendLine();
+            }
+
+            // Performance issues table
+            var allPerfIssues = projectsWithAnalysis
+                .SelectMany(r => r.AnalysisResults!.SelectMany(a =>
+                {
+                    var fileName = Path.GetFileName(a.FilePath);
+                    return a.PerformanceAnalysis.LinqPerformanceIssues
+                        .Concat(a.PerformanceAnalysis.AllocationIssues)
+                        .Concat(a.PerformanceAnalysis.AsyncPerformanceIssues)
+                        .Concat(a.PerformanceAnalysis.StringPerformanceIssues)
+                        .Select(p => new { r.ProjectName, File = fileName, p.Category, p.Severity, p.Line, p.Message, p.Recommendation });
+                }))
+                .ToList();
+
+            if (allPerfIssues.Any())
+            {
+                md.AppendLine("### Performance Issues");
+                md.AppendLine();
+                md.AppendLine("| Project | File | Category | Severity | Line | Message |");
+                md.AppendLine("|---------|------|----------|----------|------|---------|");
+
+                foreach (var issue in allPerfIssues)
+                {
+                    var sev = issue.Severity switch
+                    {
+                        PerformanceSeverity.High => "🔴 High",
+                        PerformanceSeverity.Medium => "🟡 Medium",
+                        PerformanceSeverity.Low => "🟢 Low",
+                        _ => "⚪ Info"
+                    };
+                    var msg = issue.Message.Replace("|", "\\|");
+                    md.AppendLine($"| {issue.ProjectName} | {issue.File} | {issue.Category} | {sev} | {issue.Line} | {msg} |");
+                }
+                md.AppendLine();
+            }
+        }
+
+        // Footer
+        md.AppendLine("---");
+        md.AppendLine();
+        md.AppendLine($"_Report generated by BuildValidator on {DateTime.Now:yyyy-MM-dd HH:mm:ss}_");
 
         await WriteToFileAsync(md.ToString(), options, "md");
     }
